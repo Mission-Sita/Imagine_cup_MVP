@@ -8,15 +8,14 @@ COSMOS_KEY = os.getenv("COSMOS_KEY")
 
 client = CosmosClient(COSMOS_ENDPOINT, COSMOS_KEY)
 
-# Create database if not exists
+
 database = client.create_database_if_not_exists(
     id="cyber_knowledge"
 )
 
-# ✅ DO NOT set offer_throughput for serverless
 container = database.create_container_if_not_exists(
     id="documents",
     partition_key=PartitionKey(path="/type")
 )
 
-print("✅ Database and container created successfully (serverless)")
+print("Database and container created successfully (serverless)")
