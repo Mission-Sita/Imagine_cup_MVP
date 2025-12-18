@@ -5,7 +5,7 @@ import re
 from typing import Dict, List, Optional, Any, Tuple
 from colorama import Fore, Style
 from ptt_tree_manager import TaskTreeManager,TaskNode,NodeStatus
-
+WORDLIST_PATH = "/Users/pashantraj/Desktop/Repos/imagine_cup/Imagine_cup_MVP/wordlist.txt"
 
 class PTTReasoningModule:
     """Handles LLM interactions for PTT management and decision making."""
@@ -64,6 +64,7 @@ DO NOT assume any predefined phases or structure. Instead:
 2. Determine if you need phases/categories or if direct tasks are better
 3. Create an appropriate initial structure
 4. Define specific actionable tasks to start with
+5. For using worldlist path for any tool: {WORDLIST_PATH}
 
 Consider:
 - What does this specific goal require?
@@ -89,7 +90,8 @@ Provide your analysis and initial structure in JSON format:
         {{
             "description": "Specific actionable task",
             "parent": "Which structure element this belongs to, or 'root' for direct tasks",
-            "tool_suggestion": "Which available tool to use, or 'manual' if no suitable tool",
+            "tool_suggestion": "provide the name of the tool to use",
+            "tool_arguments":"provide the inputs to the tool according to the schema",
             "priority": 1-10,
             "risk_level": "low/medium/high",
             "rationale": "Why this task is necessary for the goal"
@@ -101,7 +103,7 @@ BE INTELLIGENT: If the goal is simple, don't create complex multi-phase structur
 
         return prompt
     
-    def get_tree_update_prompt(self, tool_output: str, command: str, node: TaskNode) -> str:
+    def get_tree_update_prompt(self, tool_output: str, command: str, node: TaskNode,tool_name:str,tool_arguments: dict) -> str:
         """
         Generate prompt for updating the tree based on tool output.
         
@@ -122,8 +124,11 @@ Current PTT State:
 
 Executed Task: {node.description}
 Command: {command}
+Tool used: {tool_name}
+Arguments used: 
+{json.dumps(tool_arguments)}
 Tool Output:
-{tool_output[:2000]}  # Limit output length
+{tool_output[:2000]}  
 
 Based on this output, provide updates in the following JSON format:
 
@@ -137,7 +142,8 @@ Based on this output, provide updates in the following JSON format:
         {{
             "description": "New task based on findings",
             "parent_phase": "Phase 1/2/3/4",
-            "tool_suggestion": "Suggested tool",
+            "tool_suggestion": "provide the name of the tool to use",
+            "tool_arguments":"provide the inputs to the Suggested tool according to the schema",
             "priority": 1-10,
             "risk_level": "low/medium/high",
             "rationale": "Why this task is important"
@@ -166,14 +172,18 @@ Consider:
         """
         current_tree = self.tree_manager.to_natural_language()
         candidates = self.tree_manager.get_candidate_tasks()
-        
+
         # Prepare candidate descriptions
         candidate_desc = []
-        for i, task in enumerate(candidates[:10]):  # Limit to top 10
+        for i, task in enumerate(candidates[:10]):  
             desc = f"{i+1}. {task.description}"
             if task.priority:
                 desc += f" (Priority: {task.priority})"
+            if task.tool_arguments:
+                desc += f"\n (tool_arguments: {json.dumps(task.tool_arguments,indent=2)})"
             candidate_desc.append(desc)
+            
+            
         
         # Generate tool context
         if available_tools:
@@ -182,12 +192,22 @@ Connected MCP Tools: {', '.join(available_tools)}
 
 Think about how to leverage these tools for the selected task. Each tool has its own capabilities - 
 be creative and intelligent about how to accomplish penetration testing objectives with available tools.
-If a tool doesn't directly support a traditional approach, consider alternative methods that achieve the same goal.
+You MUST select ONE of the connected tools
+Manual actions are NOT allowed
+If no tool can accomplish the task, mark the task as BLOCKED and explain why
+Tool arguments MUST strictly match the tool schema
+If existing tool_arguments are incorrect, FIX them
 """
         else:
             tool_context = """
-No MCP tools are currently connected. Select tasks that can be performed manually or recommend connecting appropriate tools.
+No MCP tools are currently connected.
+
+IMPORTANT:
+- You MUST NOT select any task
+- Mark the situation as BLOCKED
+- Explain that no actions are possible without tools
 """
+
 
         prompt = f"""You are managing a Pentesting Task Tree (PTT) and need to select the next action.
 
@@ -214,7 +234,8 @@ Select the most strategic next action and Return ONLY this JSON object:
     "selected_task_index": 1-based index from candidate list,
     "rationale": "Why this task is the best next step",
     "command": "Intelligent request that leverages available tools effectively",
-    "tool": "Which available tool to use, or 'manual' if no suitable tool",
+    "tool": "Which available tool to use (must be one of the connected MCP tools)",
+    "tool_arguments": "provide the inputs to the tool according to the schema",
     "expected_outcome": "What we hope to discover/achieve",
     "alternative_if_blocked": "Backup task index if this fails"
 }}
@@ -498,24 +519,21 @@ Current Phase Focus:
         
         return summary
     
-    def validate_and_fix_tool_suggestions(self, tasks: List[Dict[str, Any]], available_tools: List[str]) -> List[Dict[str, Any]]:
-        """Let the LLM re-evaluate tool suggestions if they don't match available tools."""
+    def validate_and_fix_tool_suggestions(self,tasks: List[Dict[str, Any]],
+                                          available_tools: List[str]) -> List[Dict[str, Any]]:
         if not available_tools:
-            return tasks
-        
-        # Check if any tasks use unavailable tools
-        needs_fixing = []
+            raise RuntimeError("No MCP tools available — manual actions are forbidden")
+
         valid_tasks = []
-        
+
         for task in tasks:
-            tool_suggestion = task.get('tool_suggestion', '')
-            if tool_suggestion in available_tools or tool_suggestion in ['manual', 'generic']:
-                valid_tasks.append(task)
-            else:
-                needs_fixing.append(task)
-        
-        if needs_fixing:
-            print(f"{Fore.YELLOW}Some tasks reference unavailable tools. Letting AI re-evaluate...{Style.RESET_ALL}")
-            # Return all tasks - let the execution phase handle tool mismatches intelligently
-            
-        return tasks 
+            tool = task.get("tool_suggestion")
+
+            if tool not in available_tools:
+                raise ValueError(
+                    f"Invalid tool '{tool}'. Must be one of {available_tools}"
+                )
+
+            valid_tasks.append(task)
+
+        return valid_tasks

@@ -36,11 +36,16 @@ class TaskNode:
         """Initialize a task node."""
         self.id = kwargs.get('id', str(uuid.uuid4()))
         self.description = description
-        self.status = NodeStatus(kwargs.get('status', NodeStatus.PENDING.value))
+
+        status = kwargs.get('status', NodeStatus.PENDING)
+        self.status = status if isinstance(status, NodeStatus) else NodeStatus(status)
+
         self.node_type = node_type  # task, phase, finding, objective
         self.parent_id = parent_id
         self.children_ids: List[str] = kwargs.get('children_ids', [])
         
+        self.tool_arguments = kwargs.get('tool_arguments',None)
+
         # Task execution details
         self.tool_used = kwargs.get('tool_used', None)
         self.command_executed = kwargs.get('command_executed', None)
@@ -49,7 +54,10 @@ class TaskNode:
         
         # Metadata
         self.priority = kwargs.get('priority', 5)  # 1-10, higher is more important
-        self.risk_level = RiskLevel(kwargs.get('risk_level', RiskLevel.LOW.value))
+
+        risk = kwargs.get('risk_level', RiskLevel.LOW)
+        self.risk_level = risk if isinstance(risk, RiskLevel) else RiskLevel(risk)
+        
         self.timestamp = kwargs.get('timestamp', None)
         self.kb_references = kwargs.get('kb_references', [])
         self.dependencies = kwargs.get('dependencies', [])
@@ -68,6 +76,7 @@ class TaskNode:
             'children_ids': self.children_ids,
             'tool_used': self.tool_used,
             'command_executed': self.command_executed,
+            'tool_arguments':self.tool_arguments,
             'output_summary': self.output_summary,
             'findings': self.findings,
             'priority': self.priority,
@@ -80,11 +89,10 @@ class TaskNode:
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'TaskNode':
-        """Create node from dictionary representation."""
-        return cls(
-            description=data['description'],
-            **data
-        )
+        data = dict(data)          # copy
+        description = data.pop('description')
+        return cls(description=description, **data)
+
 
 
 class TaskTreeManager:
@@ -164,7 +172,7 @@ class TaskTreeManager:
         # Update allowed fields
         allowed_fields = {
             'status', 'tool_used', 'command_executed', 'output_summary',
-            'findings', 'priority', 'risk_level', 'timestamp', 'kb_references'
+            'findings', 'priority', 'risk_level', 'timestamp', 'kb_references','tool_arguments'
         }
         
         for field, value in updates.items():
@@ -208,7 +216,7 @@ class TaskTreeManager:
         candidates = []
         
         for node in self.get_leaf_nodes():
-            if node.status in [NodeStatus.PENDING, NodeStatus.FAILED]:
+            if node.status in [NodeStatus.PENDING]:
                 # Check dependencies
                 deps_satisfied = all(
                     self.nodes.get(dep_id, TaskNode("")).status == NodeStatus.COMPLETED

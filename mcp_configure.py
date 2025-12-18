@@ -8,7 +8,7 @@ from mcp_manager import build_tool_from_schema
 
 
 def load_config() -> Union[Dict, None]:
-    config_path = "mcp.json"
+    config_path = "/Users/pashantraj/Desktop/Repos/imagine_cup/Imagine_cup_MVP/mcp.json"
 
     try:
         with open(config_path) as f:
