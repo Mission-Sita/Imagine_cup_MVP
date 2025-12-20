@@ -34,6 +34,15 @@
             "env": {
                 "SSLSCAN_PATH": "/opt/homebrew/bin/sslscan"
             }
-        }
+        },
+        "burp": {
+            "command": "/home/sharad/BurpSuiteCommunity/jre/bin/java",
+            "args": [
+                "-jar",
+                "/home/sharad/IMP_FILES/mcp-server/mcp-proxy/build/libs/mcp-proxy.jar",
+                "--sse-url",
+                "http://127.0.0.1:9876"
+            ]
+    }
     }
 }
