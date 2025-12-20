@@ -9,7 +9,7 @@ from mcp_configure import configure_mcp
 from utils import validate_arguments
 import json
 from ptt_reasoning import PTTReasoningModule
-from ptt_tree_manager import TaskTreeManager,TaskNode
+from ptt_tree_manager import TaskTreeManager,TaskNode,NodeStatus
 import asyncio
 import sys
 from typing import List
@@ -45,7 +45,7 @@ async def main():
     stack, GLOBAL_SCHEMA, tools, GLOBAL_NAME_TO_TOOL = await configure_mcp()
 
     llm = ChatOpenAI( 
-        model="openai/gpt-4o", 
+        model="gpt-4o", 
         openai_api_key=os.getenv("OPEN_AI_API_KEY"), 
         openai_api_base=os.getenv("OPEN_AI_API_BASE")
         ).bind_tools(tools)
@@ -79,7 +79,8 @@ async def main():
             parent_id=tree_manager.root_id,
             priority=task.get("priority", 5),
             risk_level=task.get("risk_level", "low"),
-            tool_arguments = task["tool_arguments"]
+            tool_used = task.get("tool_suggestion",None),
+            tool_arguments = task.get("tool_arguments",{})
         )
         tree_manager.add_node(node)
 
@@ -87,7 +88,7 @@ async def main():
     
     while True:
 
-        candidates = tree_manager.get_candidate_tasks()
+        candidates = tree_manager.get_candidate_tasks()[:10]
         if not candidates:
             print("All tasks completed or blocked.")
             break
@@ -107,24 +108,28 @@ async def main():
 
         selected_index = next_action.get("selected_task_index", 1) - 1
         selected_task = candidates[selected_index]
-        tool_name = next_action.get("tool")
+        tool_name = selected_task.tool_used
+        tool_args = selected_task.tool_arguments
 
-        if not tool_name:
-            tool_output = "Task blocked: No executable tool provided"
-            tree_manager.update_node(selected_task.id, {
-                "status": "blocked",
-                "findings": "No MCP tool available for this task"
-            })
-            continue
 
-        command = next_action.get("command", "")
-        tool_args = next_action.get("tool_arguments",{})
+        tree_manager.update_node(
+            selected_task.id,
+            {"status": NodeStatus.IN_PROGRESS.value}
+        )
+
 
         print(f"\nExecuting Task: {selected_task.description}| \n{tool_name}\n {tool_args} ===")
 
         tool_name_normalized = resolve_tool_name(tool_name,GLOBAL_SCHEMA.keys())
 
-        if tool_name_normalized in GLOBAL_NAME_TO_TOOL:
+        if tool_name == 'manual':
+            print(f"Description:\n{selected_task.description}\n")
+            print(f"Ecpected Outcome:\n{next_action.get("expected_outcome","No Expected Outcome")}")
+            
+            await asyncio.to_thread(input, "User: ")
+
+
+        elif tool_name_normalized in GLOBAL_NAME_TO_TOOL:
             
             validation = validate_arguments(tool_args, GLOBAL_SCHEMA[tool_name_normalized])
 
@@ -147,16 +152,12 @@ async def main():
 
                     tool_output = f"Tool execution failed with error: {e}"
         else:
-            if not tool_name_normalized or tool_name_normalized == "not_found":
-                tree_manager.update_node(selected_task.id, {
-                    "status": "blocked",
-                    "findings": "Task is not executable by any connected MCP tool"
-                })
-                continue    
+            tool_output = "Not Executed due to unknown reason"
+   
 
 
 
-        update_prompt = reasoning_module.get_tree_update_prompt(tool_output, command, selected_task,tool_name,tool_args)
+        update_prompt = reasoning_module.get_tree_update_prompt(tool_output, selected_task)
 
         update_response = llm.invoke([SystemMessage(content="Update tree based on output"), HumanMessage(content=update_prompt)])
 
@@ -169,7 +170,7 @@ async def main():
 
         for t in new_tasks:
 
-            tool_name = resolve_tool_name(t.get("tool_suggestion"),GLOBAL_SCHEMA.keys())
+            tool_name = resolve_tool_name(t.get("tool_suggestion"),list(GLOBAL_SCHEMA.keys()))
 
             if tool_name in GLOBAL_SCHEMA.keys():
 
@@ -177,7 +178,9 @@ async def main():
                     description=t["description"],
                     parent_id=tree_manager.root_id,
                     priority=t.get("priority", 5),
-                    risk_level=t.get("risk_level", "low")
+                    risk_level=t.get("risk_level", "low"),
+                    tool_used=t.get("tool_suggestion"),
+                    tool_arguments=t.get("tool_arguments", {})
                 )
                 tree_manager.add_node(node)
 
