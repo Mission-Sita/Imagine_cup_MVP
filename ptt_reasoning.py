@@ -3,7 +3,6 @@
 import json
 import re
 from typing import Dict, List, Optional, Any, Tuple
-from colorama import Fore, Style
 from ptt_tree_manager import TaskTreeManager,TaskNode,NodeStatus
 WORDLIST_PATH = "/Users/pashantraj/Desktop/Repos/imagine_cup/Imagine_cup_MVP/wordlist.txt"
 
@@ -293,7 +292,7 @@ DO NOT recommend expanding the scope beyond the original goal. If the goal is co
     def parse_tree_initialization_response(self, llm_response: str) -> Dict[str, Any]:
         """Parse LLM response for tree initialization."""
         try:
-            print(f"{Fore.CYAN}Parsing initialization response...{Style.RESET_ALL}")
+            # print(f"{Fore.CYAN}Parsing initialization response...{Style.RESET_ALL}")
 
             response_json = self._extract_json(llm_response)
             
@@ -301,8 +300,8 @@ DO NOT recommend expanding the scope beyond the original goal. If the goal is co
             structure = response_json.get('structure', [])
             initial_tasks = response_json.get('initial_tasks', [])
             
-            print(f"{Fore.GREEN}LLM Analysis: {analysis}{Style.RESET_ALL}")
-            print(f"{Fore.GREEN}Successfully parsed {len(structure)} structure elements and {len(initial_tasks)} tasks{Style.RESET_ALL}")
+            # print(f"{Fore.GREEN}LLM Analysis: {analysis}{Style.RESET_ALL}")
+            # print(f"{Fore.GREEN}Successfully parsed {len(structure)} structure elements and {len(initial_tasks)} tasks{Style.RESET_ALL}")
             
             return {
                 'analysis': analysis,
@@ -310,8 +309,8 @@ DO NOT recommend expanding the scope beyond the original goal. If the goal is co
                 'initial_tasks': initial_tasks
             }
         except Exception as e:
-            print(f"{Fore.YELLOW}Failed to parse initialization response: {e}{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}Response text (first 500 chars): {llm_response[:500]}{Style.RESET_ALL}")
+            print(f"Failed to parse initialization response: {e}")
+            print(f"Response text (first 500 chars): {llm_response[:500]}")
             return {
                 'analysis': 'Failed to parse LLM response',
                 'structure': [],
@@ -326,7 +325,7 @@ DO NOT recommend expanding the scope beyond the original goal. If the goal is co
             new_tasks = response_json.get('new_tasks', [])
             return node_updates, new_tasks
         except Exception as e:
-            print(f"{Fore.YELLOW}Failed to parse update response: {e}{Style.RESET_ALL}")
+            print(f"Failed to parse update response: {e}")
             return {}, []
     
     def parse_next_action_response(self, llm_response: str, available_tools: List[str] = None) -> Optional[Dict[str, Any]]:
@@ -335,7 +334,7 @@ DO NOT recommend expanding the scope beyond the original goal. If the goal is co
             response_json = self._extract_json(llm_response)
             return response_json
         except Exception as e:
-            print(f"{Fore.YELLOW}Failed to parse next action response: {e}{Style.RESET_ALL}")
+            print(f"Failed to parse next action response: {e}")
             return None
     
     def parse_goal_check_response(self, llm_response: str) -> Dict[str, Any]:
@@ -344,7 +343,7 @@ DO NOT recommend expanding the scope beyond the original goal. If the goal is co
             response_json = self._extract_json(llm_response)
             return response_json
         except Exception as e:
-            print(f"{Fore.YELLOW}Failed to parse goal check response: {e}{Style.RESET_ALL}")
+            print(f"Failed to parse goal check response: {e}")
             return {"goal_achieved": False, "confidence": 0}
     
     def _extract_json(self, text: str) -> Dict[str, Any]:
@@ -352,24 +351,23 @@ DO NOT recommend expanding the scope beyond the original goal. If the goal is co
         if not text:
             raise ValueError("Empty response text")
         
-        print(f"{Fore.CYAN}Attempting to extract JSON from {len(text)} character response{Style.RESET_ALL}")
+        # print(f"{Fore.CYAN}Attempting to extract JSON from {len(text)} character response{Style.RESET_ALL}")
         
         # Try multiple strategies to extract JSON
         strategies = [
             self._extract_json_code_block,
             self._extract_json_braces,
-            self._extract_json_fuzzy,
-            self._create_fallback_json
+            self._extract_json_fuzzy
         ]
         
         for i, strategy in enumerate(strategies):
             try:
                 result = strategy(text)
                 if result:
-                    print(f"{Fore.GREEN}Successfully extracted JSON using strategy {i+1}{Style.RESET_ALL}")
+                    #print(f"{Fore.GREEN}Successfully extracted JSON using strategy {i+1}{Style.RESET_ALL}")
                     return result
             except Exception as e:
-                print(f"{Fore.YELLOW}Strategy {i+1} failed: {e}{Style.RESET_ALL}")
+                #print(f"{Fore.YELLOW}Strategy {i+1} failed: {e}{Style.RESET_ALL}")
                 continue
         
         raise ValueError("Could not extract valid JSON from response")
@@ -420,36 +418,7 @@ DO NOT recommend expanding the scope beyond the original goal. If the goal is co
         
         raise ValueError("Fuzzy JSON extraction failed")
     
-    def _create_fallback_json(self, text: str) -> Dict[str, Any]:
-        """Create fallback JSON if no valid JSON is found."""
-        print(f"{Fore.YELLOW}Creating fallback JSON structure{Style.RESET_ALL}")
-        
-        # Return an empty but valid structure
-        return {
-            "tasks": [],
-            "node_updates": {"status": "completed"},
-            "new_tasks": [],
-            "selected_task_index": 1,
-            "goal_achieved": False,
-            "confidence": 0
-        }
     
-    # def verify_tree_update(self, old_tree_state: str, new_tree_state: str) -> bool:
-    #     """
-    #     Verify that tree updates maintain integrity.
-        
-    #     Args:
-    #         old_tree_state: Tree state before update
-    #         new_tree_state: Tree state after update
-            
-    #     Returns:
-    #         True if update is valid
-    #     """
-    #     # For now, basic verification - can be enhanced
-    #     # Check that only leaf nodes were modified (as per PentestGPT approach)
-    #     # This is simplified - in practice would need more sophisticated checks
-        
-    #     return True  # Placeholder - implement actual verification logic
     
     def generate_strategic_summary(self) -> str:
         """Generate a strategic summary of the current PTT state."""
@@ -482,41 +451,20 @@ Current Phase Focus:
                 total_children = len(node.children_ids)
                 phase_activity[node.description] = (completed_children, total_children)
         
-        for phase, (completed, total) in phase_activity.items():
-            if total > 0:
-                progress = (completed / total) * 100
-                summary += f"- {phase}: {completed}/{total} tasks ({progress:.0f}%)\n"
+        # for phase, (completed, total) in phase_activity.items():
+        #     if total > 0:
+        #         progress = (completed / total) * 100
+        #         summary += f"- {phase}: {completed}/{total} tasks ({progress:.0f}%)\n"
         
-        # Add key findings
-        summary += "\nKey Findings:\n"
-        vuln_count = 0
-        for node in self.tree_manager.nodes.values():
-            if node.status == NodeStatus.VULNERABLE and node.findings:
-                vuln_count += 1
-                summary += f"- {node.description}: {node.findings[:100]}...\n"
-                if vuln_count >= 5:  # Limit to top 5
-                    break
+        # # Add key findings
+        # summary += "\nKey Findings:\n"
+        # vuln_count = 0
+        # for node in self.tree_manager.nodes.values():
+        #     if node.status == NodeStatus.VULNERABLE and node.findings:
+        #         vuln_count += 1
+        #         summary += f"- {node.description}: {node.findings[:100]}...\n"
+        #         if vuln_count >= 5:  # Limit to top 5
+        #             break
         
         return summary
     
-    # def validate_and_fix_tool_suggestions(self, tasks: List[Dict[str, Any]], available_tools: List[str]) -> List[Dict[str, Any]]:
-    #     """Let the LLM re-evaluate tool suggestions if they don't match available tools."""
-    #     if not available_tools:
-    #         return tasks
-        
-    #     # Check if any tasks use unavailable tools
-    #     needs_fixing = []
-    #     valid_tasks = []
-        
-    #     for task in tasks:
-    #         tool_suggestion = task.get('tool_suggestion', '')
-    #         if tool_suggestion in available_tools or tool_suggestion in ['manual', 'generic']:
-    #             valid_tasks.append(task)
-    #         else:
-    #             needs_fixing.append(task)
-        
-    #     if needs_fixing:
-    #         print(f"{Fore.YELLOW}Some tasks reference unavailable tools. Letting AI re-evaluate...{Style.RESET_ALL}")
-    #         # Return all tasks - let the execution phase handle tool mismatches intelligently
-            
-    #     return tasks 

@@ -3,9 +3,10 @@ from ptt_agent import PTTAgent
 
 async def main():
     agent = PTTAgent(
-        goal="gather information about the target 192.168.128.2",
-        target="192.168.128.2",
-        constraints={"Aggressiveness": "Don't start too aggressive initially"}
+        goal="",
+        target="",
+        constraints={
+            }
     )
 
     await agent.setup()

@@ -31,7 +31,7 @@ class PTTAgent:
         self.stack, self.GLOBAL_SCHEMA, self.tools, self.GLOBAL_NAME_TO_TOOL = await configure_mcp()
 
         self.llm = ChatOpenAI(
-            model="gpt-4o",
+            model="gpt-4.1",
             openai_api_key=os.getenv("OPEN_AI_API_KEY"),
             openai_api_base=os.getenv("OPEN_AI_API_BASE"),
         ).bind_tools(self.tools)
@@ -82,7 +82,7 @@ class PTTAgent:
             ])
 
             next_action = self.reasoning_module.parse_next_action_response(response.content)
-            print(json.dumps(next_action, indent=2))
+            print(f"{next_action["rationale"]}\nExpexted Outcome: {next_action["expected_outcome"]}\n")
 
             selected_task = candidates[next_action["selected_task_index"] - 1]
             await self.execute_task(selected_task, next_action)
@@ -156,6 +156,7 @@ class PTTAgent:
 
         status = self.reasoning_module.parse_goal_check_response(response.content)
         if status.get("goal_achieved"):
+            print(json.dumps(status,indent=3))
             print("\n🎯 Goal Achieved!")
             print(status)
             return True
