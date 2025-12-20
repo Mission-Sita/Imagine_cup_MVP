@@ -1,42 +1,14 @@
-
-from contextlib import AsyncExitStack
 from langchain_core.messages import SystemMessage,HumanMessage
-from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
-import os
 from mcp_configure import configure_mcp
-from utils import validate_arguments
-import json
+from utils import validate_arguments,resolve_tool_name
 from ptt_reasoning import PTTReasoningModule
 from ptt_tree_manager import TaskTreeManager,TaskNode,NodeStatus
+import json
+import os
 import asyncio
-import sys
-from typing import List
-def resolve_tool_name(llm_tool_name: str, available_tools: List[str]) -> str:
-    """
-    Resolve an LLM-provided tool name to a known available tool.
-    """
-    if not llm_tool_name:
-        raise ValueError("LLM provided empty tool name")
 
-    llm_tool_name = llm_tool_name.strip()
-
-
-    if llm_tool_name in available_tools:
-        return llm_tool_name
-
-    candidate = llm_tool_name.split(".")[-1]
-    if candidate in available_tools:
-        return candidate
-
-
-    for tool in available_tools:
-        if llm_tool_name.endswith(tool):
-            return tool
-
-
-    return "not_found"
 
 
 load_dotenv()
@@ -52,9 +24,12 @@ async def main():
 
 
 
-    goal = "Assess the security posture of example.com"
-    target = "https://example.com"
-    constraints = {"scope": "public endpoints only"}
+    # goal = "Assess the security posture of example.com"
+    # target = "https://example.com"
+    # constraints = {"scope": "public endpoints only"}
+    goal = "gather informatoin about the target 192.168.128.2"
+    target = "192.168.128.2"
+    constraints = {"Aggressiveness":"Don't Start too Aggressive initially"}
 
     tree_manager = TaskTreeManager()
     tree_manager.initialize_tree(goal, target, constraints)
@@ -99,13 +74,10 @@ async def main():
         next_response = llm.invoke([SystemMessage(content="Select next task"), HumanMessage(content=next_action_prompt)])
 
 
-        if next_response.tool_calls:
-            print(f"Next Response toolcall: \n{json.dumps(next_response.tool_calls[0]["args"],indent=2)}")
-            next_action = reasoning_module.parse_next_action_response(json.dumps(next_response.tool_calls[0]["args"],indent=2))
-        else:
-            next_action = reasoning_module.parse_next_action_response(next_response.content)
+        
+        next_action = reasoning_module.parse_next_action_response(next_response.content)
 
-
+        print(json.dumps(next_action,indent=2))
         selected_index = next_action.get("selected_task_index", 1) - 1
         selected_task = candidates[selected_index]
         tool_name = selected_task.tool_used
@@ -167,6 +139,8 @@ async def main():
 
         tree_manager.update_node(selected_task.id, node_updates)
 
+        print(node_updates)
+        print(new_tasks)
 
         for t in new_tasks:
 
@@ -195,6 +169,7 @@ async def main():
 
         if goal_status.get("goal_achieved", False):
             print("\n🎯 Goal Achieved!")
+            print(goal_status)
             break
 
 
