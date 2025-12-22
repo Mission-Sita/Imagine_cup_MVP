@@ -3,8 +3,8 @@ from ptt_agent import PTTAgent
 
 async def main():
     agent = PTTAgent(
-        goal="",
-        target="",
+        goal="scan basic information on example.com",
+        target="example.com",
         constraints={
             }
     )

@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from mcp_configure import configure_mcp
-from utils import validate_arguments, resolve_tool_name
+from ptt_utils import validate_arguments, resolve_tool_name
 from ptt_reasoning import PTTReasoningModule
 from ptt_tree_manager import TaskTreeManager, TaskNode, NodeStatus
 
