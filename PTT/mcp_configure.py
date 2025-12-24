@@ -2,7 +2,7 @@ from typing import Union,Dict
 import json
 from contextlib import AsyncExitStack
 from mcp import ClientSession,StdioServerParameters,stdio_client
-from utils import remove_descriptions
+from ptt_utils import remove_descriptions
 from mcp_manager import build_tool_from_schema
 
 

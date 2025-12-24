@@ -3,7 +3,6 @@
 import json
 import re
 from typing import Dict, List, Optional, Any, Tuple
-from colorama import Fore, Style
 from ptt_tree_manager import TaskTreeManager,TaskNode,NodeStatus
 WORDLIST_PATH = "/Users/pashantraj/Desktop/Repos/imagine_cup/Imagine_cup_MVP/wordlist.txt"
 
@@ -64,7 +63,7 @@ DO NOT assume any predefined phases or structure. Instead:
 2. Determine if you need phases/categories or if direct tasks are better
 3. Create an appropriate initial structure
 4. Define specific actionable tasks to start with
-5. For using worldlist path for any tool: {WORDLIST_PATH}
+5. use wordlist path as {WORDLIST_PATH} for any tool argument if required
 
 Consider:
 - What does this specific goal require?
@@ -90,8 +89,8 @@ Provide your analysis and initial structure in JSON format:
         {{
             "description": "Specific actionable task",
             "parent": "Which structure element this belongs to, or 'root' for direct tasks",
-            "tool_suggestion": "provide the name of the tool to use",
-            "tool_arguments":"provide the inputs to the tool according to the schema",
+            "tool_suggestion": "Which available tool to use, or 'manual' if no suitable tool",
+            "tool_arguments": "provide the inputs to the tool according to the schema, or 'None' if tool_suggestion is 'manual'",
             "priority": 1-10,
             "risk_level": "low/medium/high",
             "rationale": "Why this task is necessary for the goal"
@@ -103,7 +102,7 @@ BE INTELLIGENT: If the goal is simple, don't create complex multi-phase structur
 
         return prompt
     
-    def get_tree_update_prompt(self, tool_output: str, command: str, node: TaskNode,tool_name:str,tool_arguments: dict) -> str:
+    def get_tree_update_prompt(self, tool_output: str, node: TaskNode) -> str:
         """
         Generate prompt for updating the tree based on tool output.
         
@@ -123,27 +122,26 @@ Current PTT State:
 {current_tree}
 
 Executed Task: {node.description}
-Command: {command}
-Tool used: {tool_name}
-Arguments used: 
-{json.dumps(tool_arguments)}
+Tool Used: {node.tool_used}
+Arguments Used: {node.tool_arguments}
 Tool Output:
 {tool_output[:2000]}  
 
+## Use wordlist path as {WORDLIST_PATH} for any tool argument if required ##
 Based on this output, provide updates in the following JSON format:
 
 {{
     "node_updates": {{
         "status": "completed/failed/vulnerable/not_vulnerable",
         "findings": "Summary of key findings from the output",
-        "output_summary": "Brief technical summary"
+        "output_summary": "Brief technical summary",
     }},
     "new_tasks": [
         {{
             "description": "New task based on findings",
             "parent_phase": "Phase 1/2/3/4",
-            "tool_suggestion": "provide the name of the tool to use",
-            "tool_arguments":"provide the inputs to the Suggested tool according to the schema",
+            "tool_suggestion": "Which available tool to use, or 'manual' if no suitable tool",
+            "tool_arguments": "prove inputs to the tool According the schema, or 'None' if Suggested tool is 'manual'",
             "priority": 1-10,
             "risk_level": "low/medium/high",
             "rationale": "Why this task is important"
@@ -172,42 +170,28 @@ Consider:
         """
         current_tree = self.tree_manager.to_natural_language()
         candidates = self.tree_manager.get_candidate_tasks()
+        
 
-        # Prepare candidate descriptions
         candidate_desc = []
         for i, task in enumerate(candidates[:10]):  
             desc = f"{i+1}. {task.description}"
             if task.priority:
                 desc += f" (Priority: {task.priority})"
-            if task.tool_arguments:
-                desc += f"\n (tool_arguments: {json.dumps(task.tool_arguments,indent=2)})"
             candidate_desc.append(desc)
-            
-            
         
-        # Generate tool context
+
         if available_tools:
             tool_context = f"""
 Connected MCP Tools: {', '.join(available_tools)}
 
 Think about how to leverage these tools for the selected task. Each tool has its own capabilities - 
 be creative and intelligent about how to accomplish penetration testing objectives with available tools.
-You MUST select ONE of the connected tools
-Manual actions are NOT allowed
-If no tool can accomplish the task, mark the task as BLOCKED and explain why
-Tool arguments MUST strictly match the tool schema
-If existing tool_arguments are incorrect, FIX them
+If a tool doesn't directly support a traditional approach, consider alternative methods that achieve the same goal.
 """
         else:
             tool_context = """
-No MCP tools are currently connected.
-
-IMPORTANT:
-- You MUST NOT select any task
-- Mark the situation as BLOCKED
-- Explain that no actions are possible without tools
+No MCP tools are currently connected. Select tasks that can be performed manually or recommend connecting appropriate tools.
 """
-
 
         prompt = f"""You are managing a Pentesting Task Tree (PTT) and need to select the next action.
 
@@ -228,16 +212,12 @@ Statistics:
 - In Progress: {sum(1 for n in self.tree_manager.nodes.values() if n.status == NodeStatus.IN_PROGRESS)}
 - Pending: {sum(1 for n in self.tree_manager.nodes.values() if n.status == NodeStatus.PENDING)}
 
-Select the most strategic next action and Return ONLY this JSON object:
+Select the most strategic next action and provide your response in JSON format:
 
 {{
     "selected_task_index": 1-based index from candidate list,
     "rationale": "Why this task is the best next step",
-    "command": "Intelligent request that leverages available tools effectively",
-    "tool": "Which available tool to use (must be one of the connected MCP tools)",
-    "tool_arguments": "provide the inputs to the tool according to the schema",
     "expected_outcome": "What we hope to discover/achieve",
-    "alternative_if_blocked": "Backup task index if this fails"
 }}
 
 Consider:
@@ -312,16 +292,16 @@ DO NOT recommend expanding the scope beyond the original goal. If the goal is co
     def parse_tree_initialization_response(self, llm_response: str) -> Dict[str, Any]:
         """Parse LLM response for tree initialization."""
         try:
-            print(f"{Fore.CYAN}Parsing initialization response...{Style.RESET_ALL}")
-            # Extract JSON from response
+            # print(f"{Fore.CYAN}Parsing initialization response...{Style.RESET_ALL}")
+
             response_json = self._extract_json(llm_response)
             
             analysis = response_json.get('analysis', 'No analysis provided')
             structure = response_json.get('structure', [])
             initial_tasks = response_json.get('initial_tasks', [])
             
-            print(f"{Fore.GREEN}LLM Analysis: {analysis}{Style.RESET_ALL}")
-            print(f"{Fore.GREEN}Successfully parsed {len(structure)} structure elements and {len(initial_tasks)} tasks{Style.RESET_ALL}")
+            # print(f"{Fore.GREEN}LLM Analysis: {analysis}{Style.RESET_ALL}")
+            # print(f"{Fore.GREEN}Successfully parsed {len(structure)} structure elements and {len(initial_tasks)} tasks{Style.RESET_ALL}")
             
             return {
                 'analysis': analysis,
@@ -329,8 +309,8 @@ DO NOT recommend expanding the scope beyond the original goal. If the goal is co
                 'initial_tasks': initial_tasks
             }
         except Exception as e:
-            print(f"{Fore.YELLOW}Failed to parse initialization response: {e}{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}Response text (first 500 chars): {llm_response[:500]}{Style.RESET_ALL}")
+            print(f"Failed to parse initialization response: {e}")
+            print(f"Response text (first 500 chars): {llm_response[:500]}")
             return {
                 'analysis': 'Failed to parse LLM response',
                 'structure': [],
@@ -345,17 +325,16 @@ DO NOT recommend expanding the scope beyond the original goal. If the goal is co
             new_tasks = response_json.get('new_tasks', [])
             return node_updates, new_tasks
         except Exception as e:
-            print(f"{Fore.YELLOW}Failed to parse update response: {e}{Style.RESET_ALL}")
+            print(f"Failed to parse update response: {e}")
             return {}, []
     
     def parse_next_action_response(self, llm_response: str, available_tools: List[str] = None) -> Optional[Dict[str, Any]]:
         """Parse LLM response for next action selection."""
         try:
-            
             response_json = self._extract_json(llm_response)
             return response_json
         except Exception as e:
-            print(f"{Fore.YELLOW}Failed to parse next action response: {e}{Style.RESET_ALL}")
+            print(f"Failed to parse next action response: {e}")
             return None
     
     def parse_goal_check_response(self, llm_response: str) -> Dict[str, Any]:
@@ -364,7 +343,7 @@ DO NOT recommend expanding the scope beyond the original goal. If the goal is co
             response_json = self._extract_json(llm_response)
             return response_json
         except Exception as e:
-            print(f"{Fore.YELLOW}Failed to parse goal check response: {e}{Style.RESET_ALL}")
+            print(f"Failed to parse goal check response: {e}")
             return {"goal_achieved": False, "confidence": 0}
     
     def _extract_json(self, text: str) -> Dict[str, Any]:
@@ -372,24 +351,23 @@ DO NOT recommend expanding the scope beyond the original goal. If the goal is co
         if not text:
             raise ValueError("Empty response text")
         
-        print(f"{Fore.CYAN}Attempting to extract JSON from {len(text)} character response{Style.RESET_ALL}")
+        # print(f"{Fore.CYAN}Attempting to extract JSON from {len(text)} character response{Style.RESET_ALL}")
         
         # Try multiple strategies to extract JSON
         strategies = [
             self._extract_json_code_block,
             self._extract_json_braces,
-            self._extract_json_fuzzy,
-            self._create_fallback_json
+            self._extract_json_fuzzy
         ]
         
         for i, strategy in enumerate(strategies):
             try:
                 result = strategy(text)
                 if result:
-                    print(f"{Fore.GREEN}Successfully extracted JSON using strategy {i+1}{Style.RESET_ALL}")
+                    #print(f"{Fore.GREEN}Successfully extracted JSON using strategy {i+1}{Style.RESET_ALL}")
                     return result
             except Exception as e:
-                print(f"{Fore.YELLOW}Strategy {i+1} failed: {e}{Style.RESET_ALL}")
+                #print(f"{Fore.YELLOW}Strategy {i+1} failed: {e}{Style.RESET_ALL}")
                 continue
         
         raise ValueError("Could not extract valid JSON from response")
@@ -440,36 +418,7 @@ DO NOT recommend expanding the scope beyond the original goal. If the goal is co
         
         raise ValueError("Fuzzy JSON extraction failed")
     
-    def _create_fallback_json(self, text: str) -> Dict[str, Any]:
-        """Create fallback JSON if no valid JSON is found."""
-        print(f"{Fore.YELLOW}Creating fallback JSON structure{Style.RESET_ALL}")
-        
-        # Return an empty but valid structure
-        return {
-            "tasks": [],
-            "node_updates": {"status": "completed"},
-            "new_tasks": [],
-            "selected_task_index": 1,
-            "goal_achieved": False,
-            "confidence": 0
-        }
     
-    def verify_tree_update(self, old_tree_state: str, new_tree_state: str) -> bool:
-        """
-        Verify that tree updates maintain integrity.
-        
-        Args:
-            old_tree_state: Tree state before update
-            new_tree_state: Tree state after update
-            
-        Returns:
-            True if update is valid
-        """
-        # For now, basic verification - can be enhanced
-        # Check that only leaf nodes were modified (as per PentestGPT approach)
-        # This is simplified - in practice would need more sophisticated checks
-        
-        return True  # Placeholder - implement actual verification logic
     
     def generate_strategic_summary(self) -> str:
         """Generate a strategic summary of the current PTT state."""
@@ -502,38 +451,20 @@ Current Phase Focus:
                 total_children = len(node.children_ids)
                 phase_activity[node.description] = (completed_children, total_children)
         
-        for phase, (completed, total) in phase_activity.items():
-            if total > 0:
-                progress = (completed / total) * 100
-                summary += f"- {phase}: {completed}/{total} tasks ({progress:.0f}%)\n"
+        # for phase, (completed, total) in phase_activity.items():
+        #     if total > 0:
+        #         progress = (completed / total) * 100
+        #         summary += f"- {phase}: {completed}/{total} tasks ({progress:.0f}%)\n"
         
-        # Add key findings
-        summary += "\nKey Findings:\n"
-        vuln_count = 0
-        for node in self.tree_manager.nodes.values():
-            if node.status == NodeStatus.VULNERABLE and node.findings:
-                vuln_count += 1
-                summary += f"- {node.description}: {node.findings[:100]}...\n"
-                if vuln_count >= 5:  # Limit to top 5
-                    break
+        # # Add key findings
+        # summary += "\nKey Findings:\n"
+        # vuln_count = 0
+        # for node in self.tree_manager.nodes.values():
+        #     if node.status == NodeStatus.VULNERABLE and node.findings:
+        #         vuln_count += 1
+        #         summary += f"- {node.description}: {node.findings[:100]}...\n"
+        #         if vuln_count >= 5:  # Limit to top 5
+        #             break
         
         return summary
     
-    def validate_and_fix_tool_suggestions(self,tasks: List[Dict[str, Any]],
-                                          available_tools: List[str]) -> List[Dict[str, Any]]:
-        if not available_tools:
-            raise RuntimeError("No MCP tools available — manual actions are forbidden")
-
-        valid_tasks = []
-
-        for task in tasks:
-            tool = task.get("tool_suggestion")
-
-            if tool not in available_tools:
-                raise ValueError(
-                    f"Invalid tool '{tool}'. Must be one of {available_tools}"
-                )
-
-            valid_tasks.append(task)
-
-        return valid_tasks

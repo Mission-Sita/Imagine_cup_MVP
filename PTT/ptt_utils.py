@@ -1,5 +1,5 @@
 from jsonschema import validate,ValidationError
-
+from typing import List
 
 def remove_descriptions(data, max_length=None):
     """
@@ -34,3 +34,29 @@ def validate_arguments(inputs_args, schema):
     except ValidationError as e:
         print(f"---------Invalid Arguments-------")
         return f"Invalid as {e}"
+    
+
+def resolve_tool_name(llm_tool_name: str, available_tools: List[str]) -> str:
+    """
+    Resolve an LLM-provided tool name to a known available tool.
+    """
+    if not llm_tool_name:
+        raise ValueError("LLM provided empty tool name")
+
+    llm_tool_name = llm_tool_name.strip()
+
+
+    if llm_tool_name in available_tools:
+        return llm_tool_name
+
+    candidate = llm_tool_name.split(".")[-1]
+    if candidate in available_tools:
+        return candidate
+
+
+    for tool in available_tools:
+        if llm_tool_name.endswith(tool):
+            return tool
+
+
+    return "not_found"

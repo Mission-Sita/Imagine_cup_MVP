@@ -44,11 +44,11 @@ class TaskNode:
         self.parent_id = parent_id
         self.children_ids: List[str] = kwargs.get('children_ids', [])
         
-        self.tool_arguments = kwargs.get('tool_arguments',None)
+        
 
         # Task execution details
         self.tool_used = kwargs.get('tool_used', None)
-        self.command_executed = kwargs.get('command_executed', None)
+        self.tool_arguments = kwargs.get('tool_arguments',None) # this i have added for mcps to execute esily
         self.output_summary = kwargs.get('output_summary', None)
         self.findings = kwargs.get('findings', None)
         
@@ -75,7 +75,6 @@ class TaskNode:
             'parent_id': self.parent_id,
             'children_ids': self.children_ids,
             'tool_used': self.tool_used,
-            'command_executed': self.command_executed,
             'tool_arguments':self.tool_arguments,
             'output_summary': self.output_summary,
             'findings': self.findings,
@@ -89,7 +88,7 @@ class TaskNode:
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'TaskNode':
-        data = dict(data)          # copy
+        data = dict(data)          
         description = data.pop('description')
         return cls(description=description, **data)
 
@@ -100,7 +99,7 @@ class TaskTreeManager:
     
     def __init__(self):
         """Initialize the task tree manager."""
-        self.nodes: Dict[str, TaskNode] = {}
+        self.nodes: Dict[str, TaskNode] = {} # dict : node_id->taskNode object
         self.root_id: Optional[str] = None
         self.goal: Optional[str] = None
         self.target: Optional[str] = None
@@ -123,7 +122,7 @@ class TaskTreeManager:
         self.target = target
         self.constraints = constraints or {}
         
-        # Create root node - let the LLM determine what structure is needed
+        # when we initialize a tree we pass the goal,target,constaraints -> resaoning -> prompts 
         root_node = TaskNode(
             description=f"Goal: {goal}",
             node_type="objective"
@@ -169,10 +168,10 @@ class TaskTreeManager:
         
         node = self.nodes[node_id]
         
-        # Update allowed fields
+        # Update allowed fields for updation
         allowed_fields = {
-            'status', 'tool_used', 'command_executed', 'output_summary',
-            'findings', 'priority', 'risk_level', 'timestamp', 'kb_references','tool_arguments'
+            'status', 'tool_used', 'tool_arguments', 'output_summary',
+            'findings', 'priority', 'risk_level', 'timestamp', 'kb_references'
         }
         
         for field, value in updates.items():
@@ -185,6 +184,9 @@ class TaskTreeManager:
                     setattr(node, field, value)
             elif field == 'attributes':
                 node.attributes.update(value)
+            else:
+                raise ValueError(f"Invalid update field: {field}")
+
         
         return True
     
@@ -202,7 +204,11 @@ class TaskTreeManager:
     
     def get_leaf_nodes(self) -> List[TaskNode]:
         """Get all leaf nodes (nodes without children)."""
-        return [node for node in self.nodes.values() if not node.children_ids]
+        return [
+            node for node in self.nodes.values()
+            if not node.children_ids and node.node_type == "task"
+        ]
+
     
     def get_candidate_tasks(self) -> List[TaskNode]:
         """
@@ -216,12 +222,13 @@ class TaskTreeManager:
         candidates = []
         
         for node in self.get_leaf_nodes():
-            if node.status in [NodeStatus.PENDING]:
+            if node.status in [NodeStatus.PENDING,NodeStatus.FAILED]:
                 # Check dependencies
                 deps_satisfied = all(
-                    self.nodes.get(dep_id, TaskNode("")).status == NodeStatus.COMPLETED
+                    dep_id in self.nodes and self.nodes[dep_id].status == NodeStatus.COMPLETED
                     for dep_id in node.dependencies
                 )
+
                 
                 if deps_satisfied:
                     candidates.append(node)
@@ -260,15 +267,7 @@ class TaskTreeManager:
         
         return sorted(tasks, key=task_score, reverse=True)
     
-    def _has_completed_recon(self) -> bool:
-        """Check if basic reconnaissance has been completed."""
-        recon_keywords = ["scan", "recon", "enumerat", "discover"]
-        completed_recon = any(
-            any(keyword in node.description.lower() for keyword in recon_keywords)
-            and node.status == NodeStatus.COMPLETED
-            for node in self.nodes.values()
-        )
-        return completed_recon
+    
     
     def to_natural_language(self, node_id: Optional[str] = None, indent: int = 0) -> str:
         """
@@ -310,8 +309,10 @@ class TaskTreeManager:
         # Add tool/command info if present
         if node.tool_used:
             lines.append(f"{indent_str}  → Tool: {node.tool_used}")
+
+        if node.tool_arguments:
+            lines.append(f"{indent_str}  → Tool_Arguments: {node.tool_arguments}")
         
-        # Process children
         for child_id in node.children_ids:
             lines.append(self.to_natural_language(child_id, indent + 1))
         
