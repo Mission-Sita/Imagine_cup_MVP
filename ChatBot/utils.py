@@ -1,4 +1,5 @@
-
+import os
+import sys
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from contextlib import AsyncExitStack
@@ -111,17 +112,25 @@ def build_tool_from_schema(tool_name, tool_description, tool_schema, session):
     return tool
 
 def load_config():
-    config_path = "/Users/pashantraj/Desktop/Repos/imagine_cup/Imagine_cup_MVP/mcp.json"
+    # Get the path to the current file (Chatbot/utils.py)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Go UP one level, then into Shared_Services
+    config_path = os.path.join(current_dir, "..", "Shared_Services", "mcp.json")
+    
+    # Resolve the .. to a clean absolute path
+    config_path = os.path.abspath(config_path)
+
     try:
         with open(config_path) as f:
             config = json.load(f)
-            return config.get("mcpServers", {})
+            return config.get("mcpServers", {}), os.path.dirname(config_path) # Return the folder path too!
     except Exception as e:
         print(f"Unable to open Config: {e}")
-        return None
+        return None, None
 
 async def configure_mcp():
-    mcp_servers = load_config()
+    mcp_servers, base_path = load_config()
     server_session_dict = {}
     tool_to_server = {}
     input_schemas = {}
@@ -131,9 +140,20 @@ async def configure_mcp():
     await stack.__aenter__()
     try:
         for server_name, server_info in mcp_servers.items():
+
+            cmd = server_info["command"]
+            if cmd == "python" or cmd == "python3":
+                cmd = sys.executable 
+            resolved_args = []
+            for arg in server_info["args"]:
+                potential_path = os.path.join(base_path, arg)
+                if os.path.exists(potential_path):
+                    resolved_args.append(potential_path)
+                else:
+                    resolved_args.append(arg)
             server_param = StdioServerParameters(
-                command=server_info["command"],
-                args=server_info["args"],
+                command=cmd,
+                args=resolved_args,   
                 env=server_info.get("env")
             )
             read, write = await stack.enter_async_context(stdio_client(server_param))

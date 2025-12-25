@@ -1,12 +1,18 @@
-mcp
-langchain_core
-langchain_ollama
-langchain_openai
+# --- Core Agents & Logic ---
+langchain-core
+langchain-openai
+langchain-ollama
+langgraph
 jsonschema
-nest_asyncio
 pydantic
-operator
-os
-typing
-contextlib
-re
+nest_asyncio
+python-dotenv
+
+# --- MCP (Microservices) ---
+mcp
+fastmcp
+
+# --- Database & Embeddings ---
+pymongo
+langchain-huggingface
+langchain-community

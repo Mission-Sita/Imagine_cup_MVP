@@ -2,9 +2,8 @@ import asyncio
 from agent import ReAct_Agent
 
 async def main():
-    active_tools = ["do-nmap"] 
+    active_tools = ["do-nmap", "consult_security_knowledge_base"] 
     agent = ReAct_Agent()
-    
     print("--- Initializing MCP Stack and LLM ---")
     try:
         await agent.setup(active_tools)
@@ -13,7 +12,7 @@ async def main():
         return
     
     chat_state = None
-     
+    result={}
     print("\n--- Chat Started (Type 'exit' to stop) ---")
     
     while True:

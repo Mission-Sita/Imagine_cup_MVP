@@ -1,7 +1,7 @@
 import os
 import json
 import asyncio
-from dotenv import load_dotenv
+from dotenv import load_dotenv , find_dotenv
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from mcp_configure import configure_mcp
@@ -9,7 +9,7 @@ from ptt_utils import validate_arguments, resolve_tool_name
 from ptt_reasoning import PTTReasoningModule
 from ptt_tree_manager import TaskTreeManager, TaskNode, NodeStatus
 
-load_dotenv()
+load_dotenv(find_dotenv())
 
 class PTTAgent:
     def __init__(self, goal: str, target: str, constraints: dict):
@@ -82,7 +82,7 @@ class PTTAgent:
             ])
 
             next_action = self.reasoning_module.parse_next_action_response(response.content)
-            print(f"{next_action["rationale"]}\nExpexted Outcome: {next_action["expected_outcome"]}\n")
+            print(f"{next_action['rationale']}\nExpexted Outcome: {next_action['expected_outcome']}\n")
 
             selected_task = candidates[next_action["selected_task_index"] - 1]
             await self.execute_task(selected_task, next_action)

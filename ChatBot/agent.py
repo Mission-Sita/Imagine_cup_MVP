@@ -6,11 +6,11 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage, SystemMessage, AIMessage, ToolMessage, HumanMessage
 from langgraph.graph.message import add_messages
 from langgraph.graph import StateGraph, START, END
-from dotenv import load_dotenv
+from dotenv import load_dotenv , find_dotenv
 
 from utils import validate_arguments, configure_mcp
 
-load_dotenv()
+load_dotenv(find_dotenv())
 
 class AgentState(TypedDict):
     
@@ -49,7 +49,7 @@ class ReAct_Agent:
 
 
         self.llm = ChatOpenAI(
-            model="gpt-4o", 
+            model="gpt-4o-mini", 
             api_key=api_key,
             base_url=api_base,
         ).bind_tools(self.filtered_tools) 

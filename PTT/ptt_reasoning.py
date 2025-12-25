@@ -1,10 +1,14 @@
 """PTT Reasoning Module for LLM-based task tree management."""
-
+import os
 import json
 import re
 from typing import Dict, List, Optional, Any, Tuple
 from ptt_tree_manager import TaskTreeManager,TaskNode,NodeStatus
-WORDLIST_PATH = "/Users/pashantraj/Desktop/Repos/imagine_cup/Imagine_cup_MVP/wordlist.txt"
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+WORDLIST_PATH = os.path.join(current_dir, "..", "wordlist.txt")
+WORDLIST_PATH = os.path.abspath(WORDLIST_PATH)
 
 class PTTReasoningModule:
     """Handles LLM interactions for PTT management and decision making."""

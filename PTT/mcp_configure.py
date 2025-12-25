@@ -4,23 +4,24 @@ from typing import Union, Dict
 import json
 from contextlib import AsyncExitStack
 from mcp import ClientSession, StdioServerParameters, stdio_client
-from utils import remove_descriptions
+from ptt_utils import remove_descriptions
 from mcp_manager import build_tool_from_schema
 
 def load_config() -> Union[Dict, None]:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(BASE_DIR, "mcp.json")
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(current_dir, "..", "Shared_Services", "mcp.json")
+    config_path = os.path.abspath(config_path)
+
     try:
         with open(config_path) as f:
             config = json.load(f)
-            return config.get("mcpServers", {})
+            return config.get("mcpServers", {}), os.path.dirname(config_path)
     except Exception as e:
         print(f"Unable to open Config at path {config_path} as {e}")
-        return None
+        return None, None
 
 async def configure_mcp():
-    mcp_servers = load_config()
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    mcp_servers, base_path = load_config()
     
     input_schemas = {}
     name_to_tool = {}
@@ -39,7 +40,7 @@ async def configure_mcp():
             resolved_args = []
             for arg in server_info["args"]:
                 
-                potential_path = os.path.join(BASE_DIR, arg)
+                potential_path = os.path.join(base_path, arg)
                 if os.path.exists(potential_path):
                     resolved_args.append(potential_path)
                 else:
