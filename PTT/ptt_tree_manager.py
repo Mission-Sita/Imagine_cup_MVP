@@ -3,7 +3,7 @@ import uuid
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 from enum import Enum
-
+from graphviz import Digraph
 
 class NodeStatus(Enum):
     """Enumeration of possible node statuses."""
@@ -361,4 +361,23 @@ class TaskTreeManager:
             'status_counts': status_counts,
             'leaf_nodes': len(self.get_leaf_nodes()),
             'candidate_tasks': len(self.get_candidate_tasks())
-        } 
+        }
+    from graphviz import Digraph
+
+
+    def to_graphviz(self, filename="task_tree"):
+        dot = Digraph(comment="PTT Task Tree")
+
+        for node_id, node in self.nodes.items():
+            label = (
+                f"{node.description}\n"
+                f"status={node.status}\n"
+                f"priority={node.priority}\n"
+                f"risk={node.risk_level}"
+            )
+            dot.node(str(node_id), label)
+
+            if node.parent_id:
+                dot.edge(str(node.parent_id), str(node_id))
+
+        dot.render(filename, format="png", cleanup=True)

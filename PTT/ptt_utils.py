@@ -1,6 +1,7 @@
 from jsonschema import validate,ValidationError
 from typing import List
 
+
 def remove_descriptions(data, max_length=None):
     """
     Recursively remove description fields from JSON schema.

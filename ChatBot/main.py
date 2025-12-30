@@ -1,48 +1,84 @@
-import asyncio
+from enum import Enum
+from typing import List, Optional
+from fastapi import FastAPI
+from pydantic import BaseModel
 from agent import ReAct_Agent
+from dynamic_enum import load_tool_enum
 
-async def main():
-    active_tools = ["do-nmap", "consult_security_knowledge_base"] 
+
+
+
+
+
+from enum import Enum
+from typing import List
+from pydantic import BaseModel
+from utils import load_config
+
+def load_tool_enum():
+    mcp_servers, _ = load_config()
+
+    return Enum(
+        "ToolName",
+        {
+            name.replace("-", "_").upper(): name
+            for name in mcp_servers.keys()
+        },
+        type=str
+    )
+
+# ✅ MUST be at module level
+
+
+class InitRequest(BaseModel):
+    ToolName = load_tool_enum()
+
+
+class ChatRequest(BaseModel):
+    message: str
+    state: Optional[dict] = None
+
+class ChatResponse(BaseModel):
+    response: str
+    state: dict
+
+app = FastAPI()
+
+agent: ReAct_Agent | None = None
+
+@app.post("/init")
+async def initialize_agent(payload: InitRequest):
+    global agent
     agent = ReAct_Agent()
-    print("--- Initializing MCP Stack and LLM ---")
-    try:
-        await agent.setup(active_tools)
-    except Exception as e:
-        print(f"Failed to setup agent: {e}")
-        return
-    
-    chat_state = None
-    result={}
-    print("\n--- Chat Started (Type 'exit' to stop) ---")
-    
-    while True:
-        user_input = input("\nUser: ")
-        if user_input.lower() in ["exit", "quit"]:
-            break
 
-        try:
-            
-            result = await agent.process_query(
-                user_query=user_input,
-                conversation_state=chat_state
-            )
+    await agent.setup(payload.tools)
 
-            chat_state = result["state"]
-            
+    return {
+        "message": "Agent initialized successfully",
+        "active_tools": payload.tools
+    }
 
-            print("\n--- Agent Response ---")
-            print(result["response"])
+@app.post("/chat", response_model=ChatResponse)
+async def chat(payload: ChatRequest):
+    if agent is None:
+        return {"response": "Agent not initialized", "state": {}}
 
-        except Exception as e:
-            print(f"Error: {e}")
-    
-    print("\n--- Cleaning up resources ---")
-    await agent.cleanup()
-    logs = result.get("logs", [])
-    if logs:
-        print("\n--- Execution Logs ---")
-        for log in logs:
-            print(f"  > {log}")
+    state = payload.state or {}
+    if "messages" not in state:
+        state["messages"] = []
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    result = await agent.process_query(
+        user_query=payload.message,
+        conversation_state=state
+    )
+
+    return {
+        "response": result["response"],
+        "state": result["state"]
+    }
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    if agent:
+        await agent.cleanup()

@@ -4,12 +4,15 @@ import urllib.parse
 from pymongo import MongoClient
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores.azure_cosmos_db import AzureCosmosDBVectorSearch
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class VectorDBManager:
     def __init__(self):
         # 1. Configuration (The exact settings that worked for you)
-        self.username = "ssmsaknadmin"
-        self.password = "sita@atisa123" 
+        self.username = os.getenv("DB_USERNAME")
+        self.password = os.getenv("DB_PASSWORD") 
         self.escaped_username = urllib.parse.quote_plus(self.username)
         self.escaped_password = urllib.parse.quote_plus(self.password)
         

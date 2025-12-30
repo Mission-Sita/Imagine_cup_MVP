@@ -8,7 +8,7 @@ from mcp_configure import configure_mcp
 from ptt_utils import validate_arguments, resolve_tool_name
 from ptt_reasoning import PTTReasoningModule
 from ptt_tree_manager import TaskTreeManager, TaskNode, NodeStatus
-
+from md_logger import setup_md_logger
 load_dotenv(find_dotenv())
 
 class PTTAgent:
@@ -25,6 +25,8 @@ class PTTAgent:
         self.llm = None
         self.tree_manager = TaskTreeManager()
         self.reasoning_module = None
+
+        self.logger = setup_md_logger("logging.md") ## Adding logger
 
     async def setup(self):
         """Initialize MCP stack and LLM"""
@@ -82,7 +84,12 @@ class PTTAgent:
             ])
 
             next_action = self.reasoning_module.parse_next_action_response(response.content)
-            print(f"{next_action['rationale']}\nExpexted Outcome: {next_action['expected_outcome']}\n")
+            #print(f"{next_action['rationale']}\nExpexted Outcome: {next_action['expected_outcome']}\n")
+            self.logger.info(
+                f"{next_action['rationale']}\n"
+                f"Expected Outcome: {next_action['expected_outcome']}"
+            )
+
 
             selected_task = candidates[next_action["selected_task_index"] - 1]
             await self.execute_task(selected_task, next_action)
@@ -98,9 +105,12 @@ class PTTAgent:
         tool_args = task.tool_arguments
         normalized_tool = resolve_tool_name(tool_name, self.GLOBAL_SCHEMA.keys())
 
-        print(f"\nExecuting Task: {task.description}")
-        print(f"Tool: {tool_name}")
-        print(f"Args: {tool_args}")
+        # print(f"\nExecuting Task: {task.description}")
+        # print(f"Tool: {tool_name}")
+        # print(f"Args: {tool_args}")
+        self.logger.info(f"Executing Task: {task.description}")
+        self.logger.info(f"Tool: {tool_name}")
+        self.logger.info(f"Args: {tool_args}")
 
         if tool_name == "manual":
             print(decision.get("expected_outcome", "No expected outcome"))
@@ -119,6 +129,9 @@ class PTTAgent:
                     tool_output = f"Tool error: {e}"
         else:
             tool_output = "Tool not executed."
+
+        self.logger.info(f"Tool Output:\n{tool_output}")
+
 
         await self.update_tree(task, tool_output)
 
@@ -145,6 +158,9 @@ class PTTAgent:
             self.tree_manager.add_node(node)
 
         print(self.reasoning_module.generate_strategic_summary())
+        self.tree_manager.to_graphviz("task_tree_latest")
+        self.logger.info("Updated task tree visualization → task_tree_latest.png")
+
 
     async def check_goal(self) -> bool:
         """Check if goal is achieved"""
@@ -156,11 +172,19 @@ class PTTAgent:
 
         status = self.reasoning_module.parse_goal_check_response(response.content)
         if status.get("goal_achieved"):
-            print(json.dumps(status,indent=3))
-            print("\n🎯 Goal Achieved!")
-            print(status)
+            # print(json.dumps(status,indent=3))
+            # print("\n🎯 Goal Achieved!")
+            # print(status)
+            # return True
+           
+            self.logger.info("🎯 Goal Achieved")
+            self.logger.info(json.dumps(status, indent=3))
             return True
+        
         return False
+    
+
+    
 
     async def close(self):
         if self.stack:
