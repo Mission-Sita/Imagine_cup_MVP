@@ -3,10 +3,10 @@ from ptt_agent import PTTAgent
 
 async def main():
     agent = PTTAgent(
-        goal="scan example.com for basic information",
+        goal="scan example.com for vulnerability",
         target="example.com",
         constraints={
-            "Number_of_tasks":"Try to reach goal in less task"
+            
             }
     )
 

@@ -55,7 +55,7 @@ class PTTAgent:
         ])
 
         parsed = self.reasoning_module.parse_tree_initialization_response(response.content)
-
+        self.logger.info(f"Initial Taks\n {json.dumps(parsed,indent=3)}")
         for task in parsed["initial_tasks"]:
             node = TaskNode(
                 description=task["description"],
@@ -84,7 +84,7 @@ class PTTAgent:
             ])
 
             next_action = self.reasoning_module.parse_next_action_response(response.content)
-            #print(f"{next_action['rationale']}\nExpexted Outcome: {next_action['expected_outcome']}\n")
+            
             self.logger.info(
                 f"{next_action['rationale']}\n"
                 f"Expected Outcome: {next_action['expected_outcome']}"
@@ -105,9 +105,7 @@ class PTTAgent:
         tool_args = task.tool_arguments
         normalized_tool = resolve_tool_name(tool_name, self.GLOBAL_SCHEMA.keys())
 
-        # print(f"\nExecuting Task: {task.description}")
-        # print(f"Tool: {tool_name}")
-        # print(f"Args: {tool_args}")
+
         self.logger.info(f"Executing Task: {task.description}")
         self.logger.info(f"Tool: {tool_name}")
         self.logger.info(f"Args: {tool_args}")
@@ -130,10 +128,16 @@ class PTTAgent:
         else:
             tool_output = "Tool not executed."
 
-        self.logger.info(f"Tool Output:\n{tool_output}")
+        # Always log full raw output
+        self.logger.info(f"Raw Tool Output:\n{tool_output}")
 
+        # Summarize before tree update
+        summarized_output = await self.summarize_tool_output(tool_output, task)
 
-        await self.update_tree(task, tool_output)
+        self.logger.info(f"Summarized Tool Output:\n{summarized_output}")
+
+        await self.update_tree(task, summarized_output)
+
 
     async def update_tree(self, task: TaskNode, tool_output: str):
         """Update task tree based on tool output"""
@@ -144,6 +148,8 @@ class PTTAgent:
         ])
 
         node_updates, new_tasks = self.reasoning_module.parse_tree_update_response(response.content)
+        self.logger.info(f"Node Updates\n {json.dumps(node_updates,indent=3)}")
+        self.logger.info(f"Node Updates\n {json.dumps(new_tasks,indent=3)}")
         self.tree_manager.update_node(task.id, node_updates)
 
         for t in new_tasks:
@@ -158,9 +164,7 @@ class PTTAgent:
             self.tree_manager.add_node(node)
 
         print(self.reasoning_module.generate_strategic_summary())
-        self.tree_manager.to_graphviz("task_tree_latest")
-        self.logger.info("Updated task tree visualization → task_tree_latest.png")
-
+        
 
     async def check_goal(self) -> bool:
         """Check if goal is achieved"""
@@ -172,19 +176,49 @@ class PTTAgent:
 
         status = self.reasoning_module.parse_goal_check_response(response.content)
         if status.get("goal_achieved"):
-            # print(json.dumps(status,indent=3))
-            # print("\n🎯 Goal Achieved!")
-            # print(status)
-            # return True
+        
            
             self.logger.info("🎯 Goal Achieved")
             self.logger.info(json.dumps(status, indent=3))
             return True
         
         return False
-    
+    async def summarize_tool_output(self, tool_output: str, task: TaskNode) -> str:
+        """
+        Summarize large tool outputs to control token usage.
+        """
 
-    
+        # Hard cutoff: if already small, skip LLM
+        # MAX_CHARS = 4000
+        # if len(tool_output) <= MAX_CHARS:
+        #     return tool_output
+
+        prompt = f"""
+    You are a penetration testing assistant.
+
+    Summarize the following tool output for task tree reasoning.
+
+    Task:
+    - Description: {task.description}
+    - Tool Used: {task.tool_used}
+
+    Requirements:
+    - Preserve actionable findings (IPs, ports, vulnerabilities, credentials, flags)
+    - Preserve errors or anomalies
+    - Remove noise, banners, repetition
+    - Output MUST be concise (max 300 words)
+    - Use bullet points where possible
+
+    Tool Output:
+    {tool_output}
+    """
+
+        response = self.llm.invoke([
+            SystemMessage(content="Summarize penetration testing tool output"),
+            HumanMessage(content=prompt)
+        ])
+
+        return response.content.strip()
 
     async def close(self):
         if self.stack:
