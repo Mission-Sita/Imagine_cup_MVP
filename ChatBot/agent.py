@@ -49,7 +49,7 @@ class ReAct_Agent:
 
 
         self.llm = ChatOpenAI(
-            model="gpt-4o-mini", 
+            model="gpt-4o", 
             api_key=api_key,
             base_url=api_base,
         ).bind_tools(self.filtered_tools) 
@@ -140,16 +140,23 @@ class ReAct_Agent:
         )
         workflow.add_edge("tools", "reasoner")
         return workflow.compile()
-
+    
     async def process_query(self, user_query: str, conversation_state: dict = None):
         if not self.graph:
             raise RuntimeError("Agent not initialized. Call .setup() first.")
 
+        # --- MEMORY LIMIT (Crucial for performance) ---
+        MAX_HISTORY = 10 
+
         if conversation_state is None:
-            
             input_state = {"messages": [HumanMessage(content=user_query)], "logs": []}
         else:
             input_state = conversation_state
+            
+            # Slice to keep only last 10 messages
+            if len(input_state["messages"]) > MAX_HISTORY:
+                 input_state["messages"] = input_state["messages"][-MAX_HISTORY:]
+            
             input_state["messages"].append(HumanMessage(content=user_query))
             
 

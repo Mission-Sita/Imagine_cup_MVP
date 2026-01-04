@@ -2,6 +2,7 @@
 import os
 import json
 import re
+import ast
 from typing import Dict, List, Optional, Any, Tuple
 from ptt_tree_manager import TaskTreeManager,TaskNode,NodeStatus
 
@@ -351,77 +352,49 @@ DO NOT recommend expanding the scope beyond the original goal. If the goal is co
             return {"goal_achieved": False, "confidence": 0}
     
     def _extract_json(self, text: str) -> Dict[str, Any]:
-        """Extract JSON from LLM response text."""
+        """Extract JSON from LLM response text, handling Markdown and Python-style dicts."""
         if not text:
             raise ValueError("Empty response text")
         
-        # print(f"{Fore.CYAN}Attempting to extract JSON from {len(text)} character response{Style.RESET_ALL}")
+        text = text.strip()
         
-        # Try multiple strategies to extract JSON
-        strategies = [
-            self._extract_json_code_block,
-            self._extract_json_braces,
-            self._extract_json_fuzzy
-        ]
-        
-        for i, strategy in enumerate(strategies):
-            try:
-                result = strategy(text)
-                if result:
-                    #print(f"{Fore.GREEN}Successfully extracted JSON using strategy {i+1}{Style.RESET_ALL}")
-                    return result
-            except Exception as e:
-                #print(f"{Fore.YELLOW}Strategy {i+1} failed: {e}{Style.RESET_ALL}")
-                continue
-        
-        raise ValueError("Could not extract valid JSON from response")
-    
-    def _extract_json_code_block(self, text: str) -> Dict[str, Any]:
-        """Extract JSON from code blocks."""
-        # Look for JSON between ```json and ``` or just ```
-        patterns = [
-            r'```json\s*(\{.*?\})\s*```',
-            r'```\s*(\{.*?\})\s*```'
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, text, re.DOTALL)
+        # Strategy 1: Attempt to clean Markdown wrappers first
+        cleaned_text = text
+        if "```" in text:
+            # Regex to match ```json { ... } ``` or just ``` { ... } ```
+            # Flags: DOTALL for multi-line, Ignore Case
+            match = re.search(r"```(?:\w+)?\s*(.*?)```", text, re.DOTALL)
             if match:
-                json_str = match.group(1)
-                return json.loads(json_str)
+                cleaned_text = match.group(1).strip()
         
-        raise ValueError("No JSON code block found")
-    
-    def _extract_json_braces(self, text: str) -> Dict[str, Any]:
-        """Extract JSON by finding brace boundaries."""
-        # Find the first { and last }
-        json_start = text.find('{')
-        json_end = text.rfind('}')
-        
-        if json_start != -1 and json_end != -1 and json_end > json_start:
-            json_str = text[json_start:json_end + 1]
-            return json.loads(json_str)
-        
-        raise ValueError("No valid JSON braces found")
-    
-    def _extract_json_fuzzy(self, text: str) -> Dict[str, Any]:
-        """Try to extract JSON with more flexible matching."""
-        # Look for task-like patterns and try to construct JSON
-        if "tasks" in text.lower():
-            # Try to find task descriptions
-            task_patterns = [
-                r'"description":\s*"([^"]+)"',
-                r'"tool_suggestion":\s*"([^"]+)"',
-                r'"priority":\s*(\d+)',
-                r'"risk_level":\s*"([^"]+)"'
-            ]
+        # Strategy 2: Parse what we found (Standard JSON)
+        try:
+            return json.loads(cleaned_text)
+        except json.JSONDecodeError:
+            pass 
             
-            # This is a simplified approach - could be enhanced
-            # For now, fall through to the next strategy
+        # Strategy 3: Find the outer-most Braces { ... } and parse
+        try:
+            json_start = text.find('{')
+            json_end = text.rfind('}')
+            if json_start != -1 and json_end != -1 and json_end > json_start:
+                candidate = text[json_start:json_end + 1]
+                return json.loads(candidate)
+        except json.JSONDecodeError:
             pass
-        
-        raise ValueError("Fuzzy JSON extraction failed")
-    
+
+        try:
+            # We look for braces again
+            json_start = text.find('{')
+            json_end = text.rfind('}')
+            if json_start != -1 and json_end != -1:
+                candidate = text[json_start:json_end + 1]
+                return ast.literal_eval(candidate)
+        except (ValueError, SyntaxError):
+            pass
+
+        raise ValueError(f"Could not extract valid JSON from response. Raw: {text[:100]}...")
+
     
     
     def generate_strategic_summary(self) -> str:

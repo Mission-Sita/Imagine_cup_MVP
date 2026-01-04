@@ -1,6 +1,7 @@
 import os
 import json
 import asyncio
+import ast
 from dotenv import load_dotenv, find_dotenv
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
@@ -35,12 +36,13 @@ class PTTAgent:
    
 
     async def setup(self):
+        await self.io.output("status", "Initializing Tools & LLM...")
         self.stack, self.GLOBAL_SCHEMA, self.tools, self.GLOBAL_NAME_TO_TOOL = (
             await configure_mcp()
         )
 
         self.llm = ChatOpenAI(
-            model="gpt-4.1",
+            model="gpt-4o",
             openai_api_key=os.getenv("OPEN_AI_API_KEY"),
             openai_api_base=os.getenv("OPEN_AI_API_BASE"),
         ).bind_tools(self.tools)
@@ -49,10 +51,12 @@ class PTTAgent:
             self.goal, self.target, self.constraints
         )
         self.reasoning_module = PTTReasoningModule(self.tree_manager)
-
+        
+        await self.io.output("status", "Setup Complete. Tools Ready.")
     
 
     async def initialize_tree(self):
+        await self.io.output("status", "Generating Initial Attack Plan...")
         available_tools = list(self.GLOBAL_NAME_TO_TOOL.keys())
 
         prompt = self.reasoning_module.get_tree_initialization_prompt(
@@ -85,15 +89,12 @@ class PTTAgent:
                 tool_arguments=task.get("tool_arguments", {}),
             )
             self.tree_manager.add_node(node)
-
+        await self.io.output("tree_state", json.loads(self.tree_manager.to_json()))
+        await self.io.output("status", "Task Tree Created.")
         await self.io.output(
-            "status",
-            "Initial task tree created",
+            "info", 
+            f"Plan Created with {len(parsed['initial_tasks'])} initial tasks."
         )
-        await self.io.info(
-            "initial_tasks",
-            f"Initial Tasks\n{parsed}"
-            )
 
     
 
@@ -103,7 +104,9 @@ class PTTAgent:
         while True:
             candidates = self.tree_manager.get_candidate_tasks()[:10]
             if not candidates:
+                await self.io.output("status", "No more candidate tasks found.")
                 break
+            await self.io.output("status", "Thinking about next move...")
 
             prompt = self.reasoning_module.get_next_action_prompt(
                 available_tools
@@ -120,14 +123,14 @@ class PTTAgent:
                 response.content
             )
 
-            self.logger.info(
-                f"{decision['rationale']}\n"
-                f"Expected Outcome: {decision['expected_outcome']}"
-            )
-            await self.io.info(
-                "Running_loop",
-                f"{decision['rationale']}\nExpected Outcome: {decision['expected_outcome']}"
-            )
+            if not decision:
+                self.logger.error("Failed to parse decision")
+                continue
+            log_msg = f"{decision.get('rationale', 'No rationale')}\nExpected: {decision.get('expected_outcome', '')}"
+            self.logger.info(log_msg)
+            
+            await self.io.output("info", log_msg)
+
             task = candidates[decision["selected_task_index"] - 1]
 
             await self.execute_task(task, decision)
@@ -141,14 +144,18 @@ class PTTAgent:
         self.tree_manager.update_node(
             task.id, {"status": NodeStatus.IN_PROGRESS.value}
         )
-
-        await self.io.output(
-            "log",
-            f"Executing task: {task.description}",
-        )
+        await self.io.output("tree_state", json.loads(self.tree_manager.to_json()))
+        await self.io.output("log", f"⚡ Executing: {task.description}")
+        
 
         tool_name = task.tool_used
         tool_args = task.tool_arguments
+        if isinstance(tool_args, str):
+            try:
+                tool_args = ast.literal_eval(tool_args)
+            except:
+                pass
+
         normalized_tool = resolve_tool_name(
             tool_name, self.GLOBAL_SCHEMA.keys()
         )
@@ -157,19 +164,20 @@ class PTTAgent:
         self.logger.info(f"Tool: {tool_name}")
         self.logger.info(f"Args: {tool_args}")
 
-        
+        await self.io.output("tool_use", {
+            "name": tool_name,
+            "args": tool_args
+        })
+
+
         if tool_name == "manual":
-            await self.io.output(
-                "question",
-                decision.get(
-                    "expected_outcome",
-                    "Manual input required",
-                ),
-            )
+            question = decision.get("expected_outcome", "Manual input required")
+            await self.io.output("question", question)
+            await self.io.output("status", "Waiting for User Input...")
 
             user_input = await self.io.input()
             tool_output = f"User input: {user_input}"
-
+            await self.io.output("log", f"👤 User Replied: {user_input}")
 
         elif normalized_tool in self.GLOBAL_NAME_TO_TOOL:
             validation = validate_arguments(
@@ -179,28 +187,35 @@ class PTTAgent:
 
             if validation != "Valid":
                 tool_output = f"Invalid arguments: {validation}"
+                await self.io.output("error", tool_output)
             else:
                 try:
-                    result = self.GLOBAL_NAME_TO_TOOL[
+                    await self.io.output("status", f"Running {normalized_tool}...")
+                    result = await self.GLOBAL_NAME_TO_TOOL[
                         normalized_tool
-                    ].run(tool_args)
-                    tool_output = result.content[0].text
+                    ].ainvoke(tool_args)
+                    if hasattr(result, 'content'):
+                        tool_output = str(result.content)
+                    else:
+                        tool_output = str(result)
+                    
                 except Exception as e:
                     tool_output = f"Tool error: {e}"
+                    await self.io.output("error", str(e))
         else:
-            tool_output = "Tool not executed"
+            tool_output = f"Tool '{tool_name}' not found or not executed"
+            await self.io.output("error", tool_output)
 
         self.logger.info(f"Raw Tool Output:\n{tool_output}")
+        await self.io.output("log", f"📄 Output received ({len(tool_output)} chars)")
+        await self.io.output("status", "Analyzing results...")
 
         summarized = await self.summarize_tool_output(
             tool_output, task
         )
 
-        await self.io.output(
-            "summary",
-            summarized,
-        )
-
+        
+        await self.io.output("summary", summarized)
         await self.update_tree(task, summarized)
 
     
@@ -235,7 +250,8 @@ class PTTAgent:
                 tool_arguments=t.get("tool_arguments", {}),
             )
             self.tree_manager.add_node(node)
-
+            await self.io.output("log", f"New Task Added: {t['description']}")
+        await self.io.output("tree_state", json.loads(self.tree_manager.to_json()))
     
 
     async def check_goal(self) -> bool:
@@ -253,10 +269,8 @@ class PTTAgent:
         )
 
         if status.get("goal_achieved"):
-            await self.io.output(
-                "status",
-                "🎯 Goal Achieved",
-            )
+            await self.io.output("status", "🎯 Goal Achieved!")
+            await self.io.output("success", status)
             return True
 
         return False
@@ -306,14 +320,8 @@ async def run_agent(agent: PTTAgent):
         await agent.setup()
         await agent.initialize_tree()
         await agent.run_reasoning_loop()
-        await agent.io.output(
-            "status",
-            "Agent finished",
-        )
+        await agent.io.output("status", "Agent finished")
     except Exception as e:
-        await agent.io.output(
-            "error",
-            str(e),
-        )
+        await agent.io.output("error", str(e))
     finally:
         await agent.close()

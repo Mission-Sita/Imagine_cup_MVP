@@ -8,11 +8,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from dotenv import load_dotenv, find_dotenv
+
+load_dotenv(find_dotenv())
 class VectorDBManager:
     def __init__(self):
         # 1. Configuration (The exact settings that worked for you)
         self.username = os.getenv("DB_USERNAME")
         self.password = os.getenv("DB_PASSWORD") 
+        self.username = "ssmsaknadmin"
+        self.password = "sitaatisa_123"
         self.escaped_username = urllib.parse.quote_plus(self.username)
         self.escaped_password = urllib.parse.quote_plus(self.password)
         

@@ -1,6 +1,7 @@
 from jsonschema import validate,ValidationError
 from typing import List
-
+import json
+import ast
 
 def remove_descriptions(data, max_length=None):
     """
@@ -28,12 +29,19 @@ def remove_descriptions(data, max_length=None):
 
 
 def validate_arguments(inputs_args, schema):
+    if isinstance(inputs_args, str):
+        try:
+            inputs_args = json.loads(inputs_args)
+        except:
+            try:
+                inputs_args = ast.literal_eval(inputs_args)
+            except Exception:
+                
+                return f"Critical Error: Could not parse arguments string into JSON. Data: {inputs_args}"
     try:
         validate(instance=inputs_args, schema=schema)
-        print(f"---------Valid Arguments---------")
         return "Valid"
     except ValidationError as e:
-        print(f"---------Invalid Arguments-------")
         return f"Invalid as {e}"
     
 

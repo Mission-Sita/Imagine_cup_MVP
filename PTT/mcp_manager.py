@@ -30,11 +30,12 @@ def json_to_model(name,schema):
                     possible.append(MAP["string"])
                 elif option["type"] == "array":
                     possible.append(MAP["array"])
-
+            if not possible:
+                possible = [str]
             fields[prop] = (Union[tuple(possible)],... if prop in required else None)
 
         else:
-            py_type = MAP[rules["type"]]
+            py_type = MAP.get(rules["type"], str) 
             fields[prop] = (py_type, ... if prop in required else None)
 
     return create_model(name, **fields)
@@ -42,8 +43,22 @@ def json_to_model(name,schema):
 
 async def mcp_execute(session, tool_name: str, **kwargs):
     """Generic executor for ANY MCP tool."""
-    result = await session.call_tool(tool_name, kwargs)
-    return result
+    clean_kwargs = {}
+    for k, v in kwargs.items():
+        if v is not None:
+            clean_kwargs[k] = v
+            
+    result = await session.call_tool(tool_name, clean_kwargs)
+    
+    # Extract text content from MCP result
+    if hasattr(result, 'content') and isinstance(result.content, list):
+        text_content = []
+        for item in result.content:
+            if hasattr(item, 'text'):
+                text_content.append(item.text)
+        return "\n".join(text_content)
+        
+    return str(result)
 
 def build_tool_from_schema(tool_name,tool_description,tool_schema,session):
     new_tool_name = tool_name.replace("-","_")
@@ -65,12 +80,18 @@ def build_tool_from_schema(tool_name,tool_description,tool_schema,session):
 
     def sync_wrapper(**kwargs):
         import asyncio
-        return asyncio.get_event_loop().run_until_complete(wrapper(**kwargs))
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        return loop.run_until_complete(wrapper(**kwargs))
 
     tool = StructuredTool.from_function(
         name=tool_name,
         description=tool_description,
-        func=sync_wrapper,
+        func=sync_wrapper,      
+        coroutine=wrapper,      
         args_schema=Arg_model
     )
 
