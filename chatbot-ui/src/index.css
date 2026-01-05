@@ -1,0 +1,229 @@
+/* Keep your existing reset and main-container styles exactly as they were */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.main-container {
+  height: 100vh;
+  width: 100vw;
+  background-color: #0f172a;
+  background: radial-gradient(circle at 15% 50%, rgba(30, 58, 138, 0.4), transparent 50%),
+              radial-gradient(circle at 85% 30%, rgba(88, 28, 135, 0.25), transparent 50%),
+              #020617;
+  color: white;
+  display: flex;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.content-wrapper {
+  width: 100%;
+  max-width: 800px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  position: relative;
+}
+
+/* --- Greeting Section (Centered initially) --- */
+.greeting-section {
+  flex: 1; /* Takes available space to center vertically */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 100px; 
+  animation: fadeIn 1.5s ease-out;
+}
+
+.greeting-text {
+  font-size: 3.5rem;
+  font-weight: 700;
+  background: linear-gradient(to right, #fff, #cbd5e1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 0.5rem;
+}
+
+.sub-text {
+  font-size: 1.75rem;
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+/* --- Chat Container (Scrollable area) --- */
+.chat-container {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 140px; /* Space for input area */
+  padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  scrollbar-width: none; /* Hide scrollbar for clean look */
+}
+
+.chat-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* Message Rows */
+.message-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.user-row {
+  justify-content: flex-end;
+}
+
+.bot-row {
+  justify-content: flex-start;
+}
+
+/* Bubbles */
+.message-bubble {
+  padding: 12px 18px;
+  border-radius: 20px;
+  max-width: 75%;
+  line-height: 1.5;
+  font-size: 1rem;
+}
+
+.user-bubble {
+  background: rgba(124, 58, 237, 0.6); /* Purple accent */
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.bot-bubble {
+  background: rgba(30, 41, 59, 0.8); /* Dark slate */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+  border-bottom-left-radius: 4px;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bot-avatar { background: rgba(255, 255, 255, 0.1); }
+.user-avatar { background: rgba(124, 58, 237, 0.2); }
+
+/* --- Thinking Animation Dots --- */
+.thinking-bubble {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 16px 20px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  background-color: #94a3b8;
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.dot:nth-child(1) { animation-delay: -0.32s; }
+.dot:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Input Area (Fixed at bottom) --- */
+/* Input Wrapper needs to align items to the bottom so the button stays down */
+.input-wrapper {
+  width: 100%;
+  max-width: 700px;
+  position: relative;
+  margin-bottom: 15px;
+  display: flex; /* Make it flex to align button */
+  align-items: flex-end; /* Align button to bottom if text box grows */
+  background: rgba(255, 255, 255, 0.05); /* Move background here for unified look */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 26px; /* Slightly different radius logic for textarea */
+  padding: 0; /* Reset padding */
+  overflow: hidden; /* Keeps border clean */
+  transition: all 0.3s ease;
+}
+
+.input-wrapper:focus-within {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.15);
+}
+
+/* The Textarea itself */
+.prompt-input {
+  width: 100%;
+  background: transparent; /* Transparent so wrapper handles bg */
+  border: none; /* No border on the textarea itself */
+  color: white;
+  font-size: 1rem;
+  outline: none;
+  padding: 18px 50px 18px 24px; /* Maintain padding */
+  resize: none; /* Hide manual drag handle */
+  min-height: 56px; /* Base height */
+  max-height: 200px; /* Stop it from getting too tall */
+  line-height: 1.5;
+  overflow-y: hidden; /* Hide scrollbar initially */
+}
+
+/* Show scrollbar only if it hits max-height */
+.prompt-input:focus {
+  box-shadow: none; /* Remove default focus, handled by wrapper */
+}
+
+/* Adjust Send Button Position */
+.send-btn {
+  position: absolute;
+  right: 15px;
+  bottom: 14px; /* Fixed to bottom right corner */
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+  height: 28px; /* Defined height for alignment */
+  display: flex;
+  align-items: center;
+}
+.send-btn:hover { opacity: 1; }
+.send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.disclaimer-text {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-align: center;
+}
+
+.corner-icon {
+  position: absolute;
+  bottom: 30px;
+  right: 30px;
+  opacity: 0.5;
+  pointer-events: none;
+}

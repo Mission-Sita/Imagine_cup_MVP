@@ -49,10 +49,10 @@ class ReAct_Agent:
 
 
         self.llm = ChatOpenAI(
-            model="gpt-4o", 
+            model="gpt-4o-mini", 
             api_key=api_key,
             base_url=api_base,
-        ).bind_tools(self.filtered_tools) 
+        ).bind_tools(self.filtered_tools,parallel_tool_calls=False) 
 
         self.graph = self._build_graph()
 

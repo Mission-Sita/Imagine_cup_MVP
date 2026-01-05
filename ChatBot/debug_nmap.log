@@ -1,0 +1,16 @@
+2026-01-05 10:31:32,007 - INFO - \U0001f525 Nmap Server Starting Up...
+2026-01-05 10:31:32,007 - DEBUG - Initializing server 'nmap'
+2026-01-05 10:31:32,007 - DEBUG - Registering handler for ListToolsRequest
+2026-01-05 10:31:32,007 - DEBUG - Registering handler for CallToolRequest
+2026-01-05 10:31:32,007 - DEBUG - Registering handler for ListResourcesRequest
+2026-01-05 10:31:32,007 - DEBUG - Registering handler for ReadResourceRequest
+2026-01-05 10:31:32,007 - DEBUG - Registering handler for PromptListRequest
+2026-01-05 10:31:32,007 - DEBUG - Registering handler for GetPromptRequest
+2026-01-05 10:31:32,007 - DEBUG - Registering handler for ListResourceTemplatesRequest
+2026-01-05 10:31:32,007 - INFO - \u2705 Server Ready and Listening via Stdio
+2026-01-05 10:31:32,022 - DEBUG - Using proactor: IocpProactor
+2026-01-05 10:31:32,028 - DEBUG - Received message: root=InitializedNotification(method='notifications/initialized', params=None, jsonrpc='2.0')
+2026-01-05 10:31:32,028 - DEBUG - Received message: <mcp.shared.session.RequestResponder object at 0x00000203BDCE7760>
+2026-01-05 10:31:32,028 - INFO - Processing request of type ListToolsRequest
+2026-01-05 10:31:32,028 - DEBUG - Dispatching request of type ListToolsRequest
+2026-01-05 10:31:32,028 - DEBUG - Response sent

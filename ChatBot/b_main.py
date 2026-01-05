@@ -12,7 +12,7 @@ chatbot_dir = os.path.join(project_dir,"ChatBot")
 sys.path.append(project_dir)
 sys.path.append(chatbot_dir)
 
-from ChatBot.agent import ReAct_Agent
+from agent import ReAct_Agent
 from models import ChatRequest, ChatResponse
 
 sessions={}
@@ -24,9 +24,9 @@ async def lifespan(app:FastAPI):
     global agent_instance
     print("Initializing Agent and MCP tools")
     agent_instance = ReAct_Agent()
-    active_tools = ["do-nmap", "consult_security_knowledge_base", "consult_sql_injection_knowledge_base"]
+    active_tools = ["do-nmap", "consult_security_knowledge_base"]
     try:
-        await agent_instance.setup(active_tools=None)
+        await agent_instance.setup(active_tools=active_tools)
         print("Agent is ready and waiting for call!")
     except Exception as e:
         print(f"Error while seting up the agent:{e}")
