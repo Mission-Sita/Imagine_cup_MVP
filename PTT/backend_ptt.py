@@ -76,10 +76,26 @@ class PTTAgent:
         parsed = self.reasoning_module.parse_tree_initialization_response(
             response.content
         )
+        await self.io.output("log",f"Structure: {parsed.get("analysis","No structure is defined")}")
 
-        self.logger.info(f"Initial Tasks\n{parsed}")
+        structure = parsed.get("structure",None)
+        if structure is not None:
+            for item in structure:
+                await self.io.output("status",f"status: {item["type"]}\nName: {item["name"]}\nDescription: {item['description']}\nJustification: {item['justification']}")
+                # await self.io.output("status",f"Description: {item['description']}\nJustification: {item['justification']}")
+
+
+        self.logger.info(f"Structre and Initial Tasks\n{json.dumps(parsed,indent=2)}") # This log is for local MD file
+
+        await self.io.output("log",f"Number of Tasks Added: {len(parsed["initial_tasks"])}")
         
         for task in parsed["initial_tasks"]:
+            
+            #Adding the Logs for WebApp
+            await self.io.output("log",f"Task Description: {task["description"]}")
+            await self.io.output("log",f"tool: {task.get("tool_suggestion")}, Args: {task.get("tool_arguments", {})}")
+            await self.io.output("log","-------------------------------------------------------------------------------------------------------------------")
+
             node = TaskNode(
                 description=task["description"],
                 parent_id=self.tree_manager.root_id,
@@ -89,15 +105,10 @@ class PTTAgent:
                 tool_arguments=task.get("tool_arguments", {}),
             )
             self.tree_manager.add_node(node)
-        await self.io.output("tree_state", json.loads(self.tree_manager.to_json()))
+            
         await self.io.output("status", "Task Tree Created.")
-        await self.io.output(
-            "info", 
-            f"Plan Created with {len(parsed['initial_tasks'])} initial tasks."
-        )
-
+        
     
-
     async def run_reasoning_loop(self):
         available_tools = list(self.GLOBAL_NAME_TO_TOOL.keys())
 
@@ -133,18 +144,18 @@ class PTTAgent:
 
             task = candidates[decision["selected_task_index"] - 1]
 
-            await self.execute_task(task, decision)
+            is_completed = await self.execute_task(task, decision)
 
-            if await self.check_goal():
+            if is_completed:
                 break
 
     
 
-    async def execute_task(self, task: TaskNode, decision: dict):
+    async def execute_task(self, task: TaskNode, decision: dict)->bool:
         self.tree_manager.update_node(
             task.id, {"status": NodeStatus.IN_PROGRESS.value}
         )
-        await self.io.output("tree_state", json.loads(self.tree_manager.to_json()))
+
         await self.io.output("log", f"⚡ Executing: {task.description}")
         
 
@@ -216,11 +227,11 @@ class PTTAgent:
 
         
         await self.io.output("summary", summarized)
-        await self.update_tree(task, summarized)
-
+        is_completed = await self.update_tree(task, summarized)
+        return is_completed
     
 
-    async def update_tree(self, task: TaskNode, output: str):
+    async def update_tree(self, task: TaskNode, output: str)->bool:
         prompt = self.reasoning_module.get_tree_update_prompt(
             output, task
         )
@@ -237,21 +248,32 @@ class PTTAgent:
                 response.content
             )
         )
-
+        
         self.tree_manager.update_node(task.id, updates)
+        if await self.check_goal():
+            return True
+        await self.io.output("log", f"Updates:\nstatus: {updates["status"]}\nfindings: {updates["findings"]}\noutput_summary: {updates["output_summary"]}\n")
+        
+        if new_tasks is not None:
+            await self.io.output("status", f"Number of New Tasks Added {len(new_tasks)}")
+         
+            for t in new_tasks:
+                await self.io.output("log",f"Task Description: {t["description"]}")
+                await self.io.output("log",f"tool: {t.get("tool_suggestion")}, Args: {t.get("tool_arguments", {})}")
+                await self.io.output("log","---------------------------------------------------------------------------------------------------------------")
 
-        for t in new_tasks:
-            node = TaskNode(
-                description=t["description"],
-                parent_id=self.tree_manager.root_id,
-                priority=t.get("priority", 5),
-                risk_level=t.get("risk_level", "low"),
-                tool_used=t.get("tool_suggestion"),
-                tool_arguments=t.get("tool_arguments", {}),
-            )
-            self.tree_manager.add_node(node)
-            await self.io.output("log", f"New Task Added: {t['description']}")
-        await self.io.output("tree_state", json.loads(self.tree_manager.to_json()))
+                node = TaskNode(
+                    description=t["description"],
+                    parent_id=task.id,
+                    priority=t.get("priority", 5),
+                    risk_level=t.get("risk_level", "low"),
+                    tool_used=t.get("tool_suggestion"),
+                    tool_arguments=t.get("tool_arguments", {}),
+                )
+                self.tree_manager.add_node(node)
+            
+
+        return False
     
 
     async def check_goal(self) -> bool:
@@ -270,7 +292,7 @@ class PTTAgent:
 
         if status.get("goal_achieved"):
             await self.io.output("status", "🎯 Goal Achieved!")
-            await self.io.output("success", status)
+            await self.io.output("success", f"Final Result {json.dumps(status,indent=2)}\n")
             return True
 
         return False
@@ -280,22 +302,26 @@ class PTTAgent:
     async def summarize_tool_output(
         self, output: str, task: TaskNode
     ) -> str:
-        if len(output) < 4000:
-            return output
-
+        
         prompt = f"""
-Summarize pentesting tool output.
+ You are a penetration testing assistant.
 
-Task: {task.description}
-Tool: {task.tool_used}
+    Summarize the following tool output for task tree reasoning.
 
-Keep:
-- IPs, ports, vulns, creds
-- Errors
-- Exploitable info
+    Task:
+    - Description: {task.description}
+    - Tool Used: {task.tool_used}
+    - Tool Agrguments {task.tool_arguments}
 
-Tool Output:
-{output}
+    Requirements:
+    - Preserve actionable findings (IPs, ports, vulnerabilities, credentials, flags)
+    - Preserve errors or anomalies
+    - Remove noise, banners, repetition
+    - Output MUST be concise (max 300 words)
+    - Use bullet points where possible
+
+    Tool Output:
+    {output}
 """
 
         response = self.llm.invoke(
@@ -315,13 +341,4 @@ Tool Output:
 
 
 
-async def run_agent(agent: PTTAgent):
-    try:
-        await agent.setup()
-        await agent.initialize_tree()
-        await agent.run_reasoning_loop()
-        await agent.io.output("status", "Agent finished")
-    except Exception as e:
-        await agent.io.output("error", str(e))
-    finally:
-        await agent.close()
+

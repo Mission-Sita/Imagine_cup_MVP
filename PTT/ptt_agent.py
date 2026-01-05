@@ -92,10 +92,13 @@ class PTTAgent:
 
 
             selected_task = candidates[next_action["selected_task_index"] - 1]
-            await self.execute_task(selected_task, next_action)
+            summarized_output = await self.execute_task(selected_task, next_action)
 
             if await self.check_goal():
+                self.logger.info(f"Goal Status: checking")
                 break
+
+            await self.update_tree(selected_task, summarized_output)
 
     async def execute_task(self, task: TaskNode, decision: dict):
         """Execute a selected task and update tree"""
@@ -136,7 +139,8 @@ class PTTAgent:
 
         self.logger.info(f"Summarized Tool Output:\n{summarized_output}")
 
-        await self.update_tree(task, summarized_output)
+        return summarized_output
+        # await self.update_tree(task, summarized_output)
 
 
     async def update_tree(self, task: TaskNode, tool_output: str):

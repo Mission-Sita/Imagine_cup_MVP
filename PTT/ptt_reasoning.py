@@ -159,7 +159,8 @@ Consider:
 1. What vulnerabilities or opportunities were discovered?
 2. What follow-up actions are needed based on the findings?
 3. Should any new attack vectors be explored?
-4. Are there any security misconfigurations evident?"""
+4. Are there any security misconfigurations evident?
+"""
 
         return prompt
     

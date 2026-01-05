@@ -1,9 +1,32 @@
 {
     "mcpServers": {
         "nmap": {
-            "command": "python",
-            "args": ["nmap_server.py"],
-            "env": {}
+            "command": "npx",
+            "args": ["-y", "gc-nmap-mcp"],
+            "env": {
+                "NMAP_PATH": "/opt/homebrew/bin/nmap"
+            }
+        },
+        "sqlmap": {
+            "command": "npx",
+            "args": ["-y", "gc-sqlmap-mcp"],
+            "env": {
+                "SQLMAP_PATH": "/opt/homebrew/bin/sqlmap"
+            }
+        },
+        "masscan": {
+            "command": "npx",
+            "args": ["-y", "gc-masscan-mcp"],
+            "env": {
+                "MASSCAN_PATH": "/opt/homebrew/bin/masscan"
+            }
+        },
+        "sslscan": {
+            "command": "npx",
+            "args": ["-y", "gc-sslscan-mcp"],
+            "env": {
+                "SSLSCAN_PATH": "/opt/homebrew/bin/sslscan"
+            }
         },
         "security-knowledge-service": { 
             "command": "python",
