@@ -196,29 +196,20 @@ class PTTAgent:
             await self.io.output("log", f"👤 User Replied: {user_input}")
 
         elif normalized_tool in self.GLOBAL_NAME_TO_TOOL:
-            validation = validate_arguments(
-                tool_args,
-                self.GLOBAL_SCHEMA[normalized_tool],
-            )
-
-            if validation != "Valid":
-                tool_output = f"Invalid arguments: {validation}"
-                await self.io.output("error", tool_output)
-            else:
-                try:
-                    result = await asyncio.wait_for(
-                        asyncio.to_thread(
-                            self.GLOBAL_NAME_TO_TOOL[normalized_tool].invoke,
-                            tool_args
-                        ),
-                        timeout=600
-                    )
-                    if hasattr(result, 'content'):
-                        tool_output = str(result.content)
-                    else:
-                        tool_output = str(result)
-                except asyncio.TimeoutError:
-                    tool_output = "Tool execution timed out after 300 seconds"
+            validation = validate_arguments( tool_args, self.GLOBAL_SCHEMA[normalized_tool], ) 
+            if validation != "Valid": 
+                tool_output = f"Invalid arguments: {validation}" 
+                await self.io.output("error", tool_output) 
+            else: 
+                try: 
+                    await self.io.output("status", f"Running {normalized_tool}...") 
+                    result = await self.GLOBAL_NAME_TO_TOOL[ normalized_tool ].ainvoke(tool_args) 
+                    if hasattr(result, 'content'): 
+                        tool_output = str(result.content) 
+                    else: tool_output = str(result) 
+                except Exception as e: 
+                    tool_output = f"Tool error: {e}" 
+                    await self.io.output("error", str(e))
         else:
             tool_output = f"Tool '{tool_name}' not found or not executed"
             await self.io.output("error", tool_output)

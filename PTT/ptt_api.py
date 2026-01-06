@@ -30,7 +30,7 @@ app = FastAPI(title="PTT CyberSec Assistant API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  
+    allow_origins=["https://mango-glacier-012d66b00.6.azurestaticapps.net"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
