@@ -206,18 +206,19 @@ class PTTAgent:
                 await self.io.output("error", tool_output)
             else:
                 try:
-                    await self.io.output("status", f"Running {normalized_tool}...")
-                    result = self.GLOBAL_NAME_TO_TOOL[
-                        normalized_tool
-                    ].invoke(tool_args)
+                    result = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            self.GLOBAL_NAME_TO_TOOL[normalized_tool].invoke,
+                            tool_args
+                        ),
+                        timeout=600
+                    )
                     if hasattr(result, 'content'):
                         tool_output = str(result.content)
                     else:
                         tool_output = str(result)
-                    
-                except Exception as e:
-                    tool_output = f"Tool error: {e}"
-                    await self.io.output("error", str(e))
+                except asyncio.TimeoutError:
+                    tool_output = "Tool execution timed out after 300 seconds"
         else:
             tool_output = f"Tool '{tool_name}' not found or not executed"
             await self.io.output("error", tool_output)
@@ -305,39 +306,53 @@ class PTTAgent:
 
     
 
-    async def summarize_tool_output(
-        self, output: str, task: TaskNode
-    ) -> str:
-        
+    async def summarize_tool_output(self, output: str, task: TaskNode) -> str:
         prompt = f"""
- You are a penetration testing assistant.
+    You are a STRICT tool-output summarizer for an autonomous penetration testing system.
 
-    Summarize the following tool output for task tree reasoning.
+    Your role is LIMITED to condensing raw tool output.
+    You are NOT allowed to:
+    - Suggest next steps
+    - Recommend actions
+    - Diagnose causes
+    - Add explanations beyond what is explicitly stated
+    - Infer intent or meaning
+    - Add advice or remediation
 
-    Task:
+    You MUST:
+    - Only restate information that is EXPLICITLY present in the tool output
+    - Preserve factual findings (IPs, ports, services, vulnerabilities, credentials, flags)
+    - Preserve explicit errors, exit codes, and messages exactly as reported
+    - Remove banners, noise, repetition
+    - Use neutral, factual language ONLY
+    - If information is missing, say "Not reported in output"
+
+    FORMAT RULES:
+    - Output MUST be bullet points only
+    - Do NOT include sections like "Next Steps", "Analysis", or "Recommendations"
+    - Do NOT add any content not directly present in the output
+    - Max 300 words
+
+    TASK CONTEXT (for reference only — do NOT infer from this):
     - Description: {task.description}
     - Tool Used: {task.tool_used}
-    - Tool Agrguments {task.tool_arguments}
+    - Tool Arguments: {task.tool_arguments}
 
-    Requirements:
-    - Preserve actionable findings (IPs, ports, vulnerabilities, credentials, flags)
-    - Preserve errors or anomalies
-    - Remove noise, banners, repetition
-    - Output MUST be concise (max 300 words)
-    - Use bullet points where possible
-
-    Tool Output:
+    RAW TOOL OUTPUT (authoritative source):
     {output[:6000]}
-"""
+    """
 
-        response = self.llm.invoke(
+        response = await self.llm.ainvoke(
             [
-                SystemMessage(content="Summarize tool output"),
+                SystemMessage(
+                    content="You summarize tool output exactly as observed. No reasoning. No suggestions."
+                ),
                 HumanMessage(content=prompt),
             ]
         )
 
         return response.content.strip()
+
 
     def return_token_len(self, text: str) -> int:
         if text is None:
