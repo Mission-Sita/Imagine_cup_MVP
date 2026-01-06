@@ -5,7 +5,7 @@ import ast
 from dotenv import load_dotenv, find_dotenv
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
-
+import tiktoken
 from mcp_configure import configure_mcp
 from ptt_utils import validate_arguments, resolve_tool_name
 from ptt_reasoning import PTTReasoningModule
@@ -32,6 +32,7 @@ class PTTAgent:
         self.tree_manager = TaskTreeManager()
         self.reasoning_module = None
         self.logger = setup_md_logger("logging.md")
+        self.token_encoder = tiktoken.encoding_for_model("gpt-4o")
 
    
 
@@ -65,6 +66,7 @@ class PTTAgent:
             self.constraints,
             available_tools,
         )
+        await self.io.output("log",f"Input Token length of Initialising Tree {self.return_token_len(prompt)}")
 
         response = self.llm.invoke(
             [
@@ -72,6 +74,7 @@ class PTTAgent:
                 HumanMessage(content=prompt),
             ]
         )
+        await self.io.output("log",f"Output Token lenght of Initialising Tree {self.return_token_len(response.content)}")
 
         parsed = self.reasoning_module.parse_tree_initialization_response(
             response.content
@@ -123,13 +126,15 @@ class PTTAgent:
                 available_tools
             )
 
+            await self.io.output("log",f"Next Action Prompt Token Length {self.return_token_len(prompt)}")
+
             response = self.llm.invoke(
                 [
                     SystemMessage(content="Select next task"),
                     HumanMessage(content=prompt),
                 ]
             )
-
+            await self.io.output("log",f"Output of Next Action Token Length {self.return_token_len(response.content)}")
             decision = self.reasoning_module.parse_next_action_response(
                 response.content
             )
@@ -202,9 +207,9 @@ class PTTAgent:
             else:
                 try:
                     await self.io.output("status", f"Running {normalized_tool}...")
-                    result = await self.GLOBAL_NAME_TO_TOOL[
+                    result = self.GLOBAL_NAME_TO_TOOL[
                         normalized_tool
-                    ].ainvoke(tool_args)
+                    ].invoke(tool_args)
                     if hasattr(result, 'content'):
                         tool_output = str(result.content)
                     else:
@@ -218,8 +223,9 @@ class PTTAgent:
             await self.io.output("error", tool_output)
 
         self.logger.info(f"Raw Tool Output:\n{tool_output}")
-        await self.io.output("log", f"📄 Output received ({len(tool_output)} chars)")
+        await self.io.output("log", f"Output received of Token Length {self.return_token_len(tool_output)}")
         await self.io.output("status", "Analyzing results...")
+
 
         summarized = await self.summarize_tool_output(
             tool_output, task
@@ -321,7 +327,7 @@ class PTTAgent:
     - Use bullet points where possible
 
     Tool Output:
-    {output}
+    {output[:6000]}
 """
 
         response = self.llm.invoke(
@@ -333,7 +339,18 @@ class PTTAgent:
 
         return response.content.strip()
 
-    
+    def return_token_len(self, text: str) -> int:
+        if text is None:
+            return 0
+
+        if not isinstance(text, str):
+            try:
+                text = json.dumps(text)
+            except Exception:
+                text = str(text)
+
+        return len(self.token_encoder.encode(text))
+
 
     async def close(self):
         if self.stack:
